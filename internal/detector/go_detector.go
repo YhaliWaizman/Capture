@@ -6,7 +6,7 @@ import (
 	"regexp"
 	"sort"
 
-	"github.com/capture-env-analyzer/internal/types"
+	"github.com/yhaliwaizman/capture/internal/types"
 )
 
 // GoDetector detects environment variable usage in Go files

@@ -5,7 +5,7 @@ import (
 	"io"
 	"sort"
 
-	"github.com/capture-env-analyzer/internal/types"
+	"github.com/yhaliwaizman/capture/internal/types"
 )
 
 // Reporter defines the interface for formatting and outputting analysis results

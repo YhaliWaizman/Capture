@@ -7,12 +7,12 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/capture-env-analyzer/internal/detector"
-	"github.com/capture-env-analyzer/internal/diff"
-	"github.com/capture-env-analyzer/internal/parser"
-	"github.com/capture-env-analyzer/internal/reporter"
-	"github.com/capture-env-analyzer/internal/types"
-	"github.com/capture-env-analyzer/internal/walker"
+	"github.com/yhaliwaizman/capture/internal/detector"
+	"github.com/yhaliwaizman/capture/internal/diff"
+	"github.com/yhaliwaizman/capture/internal/parser"
+	"github.com/yhaliwaizman/capture/internal/reporter"
+	"github.com/yhaliwaizman/capture/internal/types"
+	"github.com/yhaliwaizman/capture/internal/walker"
 )
 
 // CLIFlags holds the parsed command-line flags

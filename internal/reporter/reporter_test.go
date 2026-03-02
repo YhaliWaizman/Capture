@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/capture-env-analyzer/internal/types"
+	"github.com/yhaliwaizman/capture/internal/types"
 )
 
 // Test output with only unused variables

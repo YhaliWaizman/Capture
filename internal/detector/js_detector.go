@@ -6,7 +6,7 @@ import (
 	"regexp"
 	"sort"
 
-	"github.com/capture-env-analyzer/internal/types"
+	"github.com/yhaliwaizman/capture/internal/types"
 )
 
 // JSDetector detects environment variable usage in JavaScript and TypeScript files

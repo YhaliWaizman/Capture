@@ -17,7 +17,7 @@ A static analysis CLI tool that identifies mismatches between environment variab
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/capture.git
+git clone https://github.com/yhaliwaizman/capture.git
 cd capture
 
 # Build the binary
@@ -30,7 +30,7 @@ make install
 ### Using Go Install
 
 ```bash
-go install github.com/yourusername/capture/cmd/capture@latest
+go install github.com/yhaliwaizman/capture/cmd/capture@latest
 ```
 
 ## Usage

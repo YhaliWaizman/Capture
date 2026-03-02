@@ -3,7 +3,7 @@ package diff
 import (
 	"sort"
 
-	"github.com/capture-env-analyzer/internal/types"
+	"github.com/yhaliwaizman/capture/internal/types"
 )
 
 // DiffEngine compares declared and used variable sets

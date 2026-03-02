@@ -1,7 +1,7 @@
 package detector
 
 import (
-	"github.com/capture-env-analyzer/internal/types"
+	"github.com/yhaliwaizman/capture/internal/types"
 )
 
 // DetectorFactory creates language-specific detectors based on file extension

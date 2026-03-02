@@ -1,3 +1,3 @@
-module github.com/capture-env-analyzer
+module github.com/yhaliwaizman/capture
 
 go 1.21

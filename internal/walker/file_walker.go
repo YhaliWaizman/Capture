@@ -63,6 +63,15 @@ func (w *FileWalkerImpl) Walk(rootDir string, ignoreDirs []string) ([]string, er
 			}
 		}
 
+		// Check if file is a Dockerfile
+		// Matches: Dockerfile, Dockerfile.*, *.dockerfile
+		baseName := info.Name()
+		if baseName == "Dockerfile" ||
+			filepath.Ext(baseName) == ".dockerfile" ||
+			(len(baseName) > 10 && baseName[:10] == "Dockerfile") {
+			files = append(files, path)
+		}
+
 		return nil
 	})
 

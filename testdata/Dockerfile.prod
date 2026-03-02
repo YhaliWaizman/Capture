@@ -1,0 +1,29 @@
+# Multi-stage Dockerfile
+FROM node:18 AS builder
+
+ARG BUILD_DATE
+ARG GIT_COMMIT
+
+ENV NODE_ENV=production
+ENV REACT_APP_API_URL=https://api.example.com
+
+RUN echo "Build date: $BUILD_DATE"
+RUN echo "Commit: ${GIT_COMMIT}"
+
+WORKDIR /build
+COPY package*.json ./
+RUN npm ci
+
+FROM node:18-alpine AS runtime
+
+ENV NODE_ENV=production
+ENV LOG_LEVEL=info
+
+# Using variable from builder stage
+RUN echo "API URL: $REACT_APP_API_URL"
+
+WORKDIR /app
+COPY --from=builder /build .
+
+EXPOSE 8080
+CMD ["npm", "start"]

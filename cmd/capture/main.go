@@ -5,10 +5,12 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/yhaliwaizman/capture/internal/detector"
 	"github.com/yhaliwaizman/capture/internal/diff"
+	"github.com/yhaliwaizman/capture/internal/dockerfile"
 	"github.com/yhaliwaizman/capture/internal/parser"
 	"github.com/yhaliwaizman/capture/internal/reporter"
 	"github.com/yhaliwaizman/capture/internal/types"
@@ -122,11 +124,51 @@ func run(flags *CLIFlags) int {
 		return 2
 	}
 
+	// Step 2.5: Separate Dockerfiles from source files
+	var dockerfiles []string
+	var sourceFiles []string
+
+	for _, filePath := range files {
+		baseName := filepath.Base(filePath)
+		isDockerfile := baseName == "Dockerfile" ||
+			filepath.Ext(baseName) == ".dockerfile" ||
+			strings.HasPrefix(baseName, "Dockerfile")
+
+		if isDockerfile {
+			dockerfiles = append(dockerfiles, filePath)
+		} else {
+			sourceFiles = append(sourceFiles, filePath)
+		}
+	}
+
+	// Step 2.6: Analyze Dockerfiles
+	dockerAnalyzer := dockerfile.NewDockerfileAnalyzer()
+	dockerDeclared := make(map[string]bool)
+	dockerUsed := make(map[string][]types.Location)
+
+	for _, dockerfilePath := range dockerfiles {
+		result, err := dockerAnalyzer.Analyze(dockerfilePath)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to analyze %s: %v\n", dockerfilePath, err)
+			continue
+		}
+
+		// Merge declarations
+		for varName := range result.Declared {
+			dockerDeclared[varName] = true
+		}
+
+		// Merge usage locations
+		for varName, locs := range result.Used {
+			dockerUsed[varName] = append(dockerUsed[varName], locs...)
+		}
+	}
+
 	// Step 3: Detect environment variable usage in source files
 	used := make(map[string]bool)
 	allLocations := make(map[string][]types.Location)
 
-	for _, filePath := range files {
+	for _, filePath := range sourceFiles {
 		ext := filepath.Ext(filePath)
 		detector := detectorFactory.Create(ext)
 		if detector == nil {
@@ -150,6 +192,47 @@ func run(flags *CLIFlags) int {
 	// Step 4: Compare declared vs used variables
 	diffResult := diffEngine.Compare(declared, used)
 
+	// Step 4.5: Docker cross-comparison
+	var dockerMismatches bool
+
+	// Check 1: Code uses variables not declared in Dockerfile or .env
+	var codeUsedNotInDocker []string
+	for varName := range used {
+		if !dockerDeclared[varName] && !declared[varName] {
+			codeUsedNotInDocker = append(codeUsedNotInDocker, varName)
+		}
+	}
+	sort.Strings(codeUsedNotInDocker)
+	if len(codeUsedNotInDocker) > 0 {
+		dockerMismatches = true
+	}
+
+	// Check 2: Dockerfile declares variables unused in code
+	var dockerDeclaredNotUsed []string
+	for varName := range dockerDeclared {
+		if !used[varName] {
+			dockerDeclaredNotUsed = append(dockerDeclaredNotUsed, varName)
+		}
+	}
+	sort.Strings(dockerDeclaredNotUsed)
+	if len(dockerDeclaredNotUsed) > 0 {
+		dockerMismatches = true
+	}
+
+	// Check 3: Dockerfile uses undeclared variables
+	dockerUsedUndeclared := make(map[string]types.Location)
+	var dockerUsedUndeclaredKeys []string
+	for varName, locs := range dockerUsed {
+		if !dockerDeclared[varName] && len(locs) > 0 {
+			dockerUsedUndeclared[varName] = locs[0]
+			dockerUsedUndeclaredKeys = append(dockerUsedUndeclaredKeys, varName)
+		}
+	}
+	sort.Strings(dockerUsedUndeclaredKeys)
+	if len(dockerUsedUndeclared) > 0 {
+		dockerMismatches = true
+	}
+
 	// Step 5: Prepare report data with first location for each missing variable
 	reportData := types.ReportData{
 		Unused:  diffResult.Unused,
@@ -165,8 +248,33 @@ func run(flags *CLIFlags) int {
 	// Step 6: Generate report
 	rep.Report(reportData)
 
+	// Step 6.5: Report Docker-specific mismatches
+	if len(codeUsedNotInDocker) > 0 {
+		fmt.Fprintln(os.Stdout, "\nCode uses variables not in Dockerfile or .env:")
+		for _, varName := range codeUsedNotInDocker {
+			if locs, ok := allLocations[varName]; ok && len(locs) > 0 {
+				fmt.Fprintf(os.Stdout, "- %s (%s:%d)\n", varName, locs[0].FilePath, locs[0].LineNumber)
+			}
+		}
+	}
+
+	if len(dockerDeclaredNotUsed) > 0 {
+		fmt.Fprintln(os.Stdout, "\nDockerfile declares but code doesn't use:")
+		for _, varName := range dockerDeclaredNotUsed {
+			fmt.Fprintf(os.Stdout, "- %s\n", varName)
+		}
+	}
+
+	if len(dockerUsedUndeclared) > 0 {
+		fmt.Fprintln(os.Stdout, "\nDockerfile uses undeclared variables:")
+		for _, varName := range dockerUsedUndeclaredKeys {
+			location := dockerUsedUndeclared[varName]
+			fmt.Fprintf(os.Stdout, "- %s (%s:%d)\n", varName, location.FilePath, location.LineNumber)
+		}
+	}
+
 	// Determine exit code (Requirements 2.1, 2.2)
-	if len(diffResult.Unused) > 0 || len(diffResult.Missing) > 0 {
+	if len(diffResult.Unused) > 0 || len(diffResult.Missing) > 0 || dockerMismatches {
 		return 1 // Mismatches found
 	}
 	return 0 // No mismatches

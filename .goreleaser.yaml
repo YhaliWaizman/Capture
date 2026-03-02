@@ -49,7 +49,6 @@ archives:
     files:
       - README.md
       - LICENSE*
-      - DOCKERFILE_FEATURE.md
 
 checksum:
   name_template: 'checksums.txt'

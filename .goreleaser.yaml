@@ -1,0 +1,108 @@
+project_name: capture
+
+before:
+  hooks:
+    - go mod tidy
+    - go test ./...
+
+builds:
+  - id: capture
+    main: ./cmd/capture
+    binary: capture
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+      - arm
+    goarm:
+      - "7"
+    ignore:
+      - goos: windows
+        goarch: arm64
+      - goos: windows
+        goarch: arm
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.commit={{.Commit}}
+      - -X main.date={{.Date}}
+
+archives:
+  - id: capture
+    format: tar.gz
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- .Version }}_
+      {{- title .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+      {{- if .Arm }}v{{ .Arm }}{{ end }}
+    format_overrides:
+      - goos: windows
+        format: zip
+    files:
+      - README.md
+      - LICENSE*
+      - DOCKERFILE_FEATURE.md
+
+checksum:
+  name_template: 'checksums.txt'
+
+snapshot:
+  name_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+      - '^chore:'
+      - '^ci:'
+
+release:
+  github:
+    owner: yhaliwaizman
+    name: capture
+  draft: false
+  prerelease: auto
+  name_template: "{{.ProjectName}} {{.Version}}"
+  header: |
+    ## capture {{.Version}}
+    
+    A static analysis CLI tool that identifies mismatches between environment variables declared in .env files, Dockerfiles, and source code.
+    
+    ### Installation
+    
+    Download the appropriate binary for your platform below, or install via Go:
+    
+    ```bash
+    go install github.com/yhaliwaizman/capture/cmd/capture@{{.Tag}}
+    ```
+  footer: |
+    ## What's Changed
+    
+    See the [CHANGELOG](https://github.com/yhaliwaizman/capture/blob/main/CHANGELOG.md) for details.
+    
+    **Full Changelog**: https://github.com/yhaliwaizman/capture/compare/{{.PreviousTag}}...{{.Tag}}
+
+brews:
+  - name: capture
+    repository:
+      owner: yhaliwaizman
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    folder: Formula
+    homepage: https://github.com/yhaliwaizman/capture
+    description: "Static analysis CLI tool for environment variable mismatches"
+    license: MIT
+    test: |
+      system "#{bin}/capture", "--help"
+    install: |
+      bin.install "capture"

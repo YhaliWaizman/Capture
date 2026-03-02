@@ -85,11 +85,11 @@ go vet ./...
 Follow conventional commit format:
 
 ```bash
-git commit -m "feat: add new feature"
-git commit -m "fix: resolve bug in parser"
-git commit -m "docs: update README"
-git commit -m "test: add tests for detector"
-git commit -m "chore: update dependencies"
+git commit -m "[feat] add new feature"
+git commit -m "[fix] resolve bug in parser"
+git commit -m "[docs] update README"
+git commit -m "[test] add tests for detector"
+git commit -m "[chore] update dependencies"
 ```
 
 **Commit types:**

@@ -74,7 +74,7 @@ jobs:
           go build -o ${OUTPUT_NAME} -ldflags="-s -w" ./cmd/capture
           
       - name: Upload artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: capture-${{ matrix.goos }}-${{ matrix.goarch }}
           path: capture-*

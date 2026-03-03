@@ -96,7 +96,7 @@ brews:
     repository:
       owner: yhaliwaizman
       name: homebrew-tap
-      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    skip_upload: auto
     folder: Formula
     homepage: https://github.com/yhaliwaizman/capture
     description: "Static analysis CLI tool for environment variable mismatches"

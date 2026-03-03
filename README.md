@@ -1,10 +1,5 @@
 # capture
 
-[![CI](https://github.com/yhaliwaizman/capture/actions/workflows/ci.yml/badge.svg)](https://github.com/yhaliwaizman/capture/actions/workflows/ci.yml)
-[![Release](https://github.com/yhaliwaizman/capture/actions/workflows/release.yml/badge.svg)](https://github.com/yhaliwaizman/capture/actions/workflows/release.yml)
-[![Go Report Card](https://goreportcard.com/badge/github.com/yhaliwaizman/capture)](https://goreportcard.com/report/github.com/yhaliwaizman/capture)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-
 A static analysis CLI tool that identifies mismatches between environment variables declared in .env files and those referenced in source code.
 
 ## Features
@@ -233,3 +228,29 @@ check-env:
 ## License
 
 MIT
+
+## Contributing
+
+We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+### Quick Start for Contributors
+
+```bash
+# Setup development environment
+git clone https://github.com/yhaliwaizman/capture.git
+cd capture
+./scripts/setup-hooks.sh
+
+# Make changes and commit using conventional commits
+git commit -m "feat: add new feature"
+
+# Push and create PR
+git push origin feature-branch
+```
+
+We use:
+- **Conventional Commits** for commit messages
+- **Release Please** for automated releases
+- **Pre-commit hooks** for code quality
+
+See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for detailed development guide.

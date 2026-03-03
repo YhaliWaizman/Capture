@@ -1,273 +1,247 @@
-# Contributing to capture
+# Contributing to Capture
 
-Thank you for your interest in contributing to capture! This document provides guidelines and instructions for contributing.
+Thank you for your interest in contributing to Capture! This document provides guidelines and instructions for contributing.
+
+## Configuration Files
+
+Configuration files are organized in `.github/config/`:
+
+- `commitlint.json` - Commit message validation rules
+- `pre-commit.yaml` - Pre-commit hooks configuration
+- `release-please.json` - Release automation configuration
+- `release-please-manifest.json` - Version tracking
 
 ## Getting Started
 
+1. Fork the repository
+2. Clone your fork: `git clone https://github.com/YOUR_USERNAME/capture.git`
+3. Add upstream remote: `git remote add upstream https://github.com/yhaliwaizman/capture.git`
+4. Create a feature branch: `git checkout -b feature/your-feature-name`
+
+## Development Setup
+
 ### Prerequisites
 
-- Go 1.21 or later
+- Go 1.21 or higher
 - Git
-- Make (optional, but recommended)
+- Python 3 (for pre-commit hooks)
 
-### Setting Up Development Environment
+### Install Dependencies
 
-1. **Fork and clone the repository:**
-   ```bash
-   git clone https://github.com/yhaliwaizman/capture.git
-   cd capture
-   ```
+```bash
+# Install Go dependencies
+go mod download
 
-2. **Install dependencies:**
-   ```bash
-   go mod download
-   ```
+# Setup git hooks
+./scripts/setup-hooks.sh
+```
 
-3. **Build the project:**
-   ```bash
-   go build -o capture ./cmd/capture
-   # or
-   make build
-   ```
+This will install pre-commit hooks that:
+- Validate commit message format
+- Run `go fmt` on your code
+- Run tests before committing
+- Check for common issues
 
-4. **Run tests:**
-   ```bash
-   go test ./...
-   # or
-   make test
-   ```
+## Commit Message Convention
+
+We use [Conventional Commits](https://www.conventionalcommits.org/) for automated changelog generation and semantic versioning.
+
+### Format
+
+```
+<type>(<scope>): <subject>
+
+<body>
+
+<footer>
+```
+
+### Types
+
+- `feat`: A new feature
+- `fix`: A bug fix
+- `docs`: Documentation only changes
+- `style`: Code style changes (formatting, missing semicolons, etc.)
+- `refactor`: Code change that neither fixes a bug nor adds a feature
+- `perf`: Performance improvements
+- `test`: Adding or updating tests
+- `build`: Changes to build system or dependencies
+- `ci`: Changes to CI configuration files and scripts
+- `chore`: Other changes that don't modify src or test files
+
+### Examples
+
+```bash
+# Feature
+feat: add JSON output format
+feat(detector): add Ruby language support
+
+# Bug fix
+fix: correct variable detection in Python files
+fix(parser): handle quoted values in .env files
+
+# Documentation
+docs: update README with Docker Compose examples
+docs(api): add JSDoc comments to detector interface
+
+# Performance
+perf: implement parallel file processing
+
+# Tests
+test: add integration tests for Dockerfile analysis
+```
+
+### Scope (Optional)
+
+Common scopes:
+- `detector`: Language detectors
+- `parser`: File parsers
+- `reporter`: Output formatting
+- `docker`: Docker-related features
+- `cli`: Command-line interface
 
 ## Development Workflow
 
-### 1. Create a Branch
+### 1. Make Your Changes
 
 ```bash
-git checkout -b feature/your-feature-name
-# or
-git checkout -b fix/your-bug-fix
-```
+# Create a feature branch
+git checkout -b feat/json-output
 
-### 2. Make Changes
+# Make your changes
+# ...
 
-- Write clean, readable code
-- Follow Go conventions and best practices
-- Add tests for new functionality
-- Update documentation as needed
+# Run tests
+make test
 
-### 3. Run Tests
-
-```bash
-# Run all tests
-go test ./...
-
-# Run tests with coverage
-go test -v -race -coverprofile=coverage.out ./...
-
-# View coverage report
-go tool cover -html=coverage.out
-```
-
-### 4. Check Code Quality
-
-```bash
-# Format code
-go fmt ./...
-
-# Run linter (if installed)
-golangci-lint run
-
-# Check for common issues
+# Run linter
 go vet ./...
 ```
 
-### 5. Commit Changes
-
-Follow conventional commit format:
+### 2. Commit Your Changes
 
 ```bash
-git commit -m "[feat] add new feature"
-git commit -m "[fix] resolve bug in parser"
-git commit -m "[docs] update README"
-git commit -m "[test] add tests for detector"
-git commit -m "[chore] update dependencies"
+# Stage your changes
+git add .
+
+# Commit with conventional commit message
+git commit -m "feat: add JSON output format"
+
+# Pre-commit hooks will run automatically
 ```
 
-**Commit types:**
-- `feat`: New feature
-- `fix`: Bug fix
-- `docs`: Documentation changes
-- `test`: Test additions or changes
-- `chore`: Maintenance tasks
-- `refactor`: Code refactoring
-- `perf`: Performance improvements
-- `ci`: CI/CD changes
-
-### 6. Push and Create Pull Request
+### 3. Push and Create PR
 
 ```bash
-git push origin feature/your-feature-name
+# Push to your fork
+git push origin feat/json-output
+
+# Create a pull request on GitHub
 ```
 
-Then create a pull request on GitHub.
+## Testing
 
-## Code Guidelines
+### Run All Tests
 
-### Go Style
-
-- Follow [Effective Go](https://golang.org/doc/effective_go)
-- Use `gofmt` for formatting
-- Keep functions small and focused
-- Write descriptive variable names
-- Add comments for exported functions
-
-### Testing
-
-- Write unit tests for all new code
-- Aim for >80% code coverage
-- Use table-driven tests where appropriate
-- Test edge cases and error conditions
-- Use descriptive test names
-
-**Example:**
-```go
-func TestFeature_SpecificCase(t *testing.T) {
-    // Arrange
-    input := "test input"
-    expected := "expected output"
-    
-    // Act
-    result := Feature(input)
-    
-    // Assert
-    if result != expected {
-        t.Errorf("Expected %s, got %s", expected, result)
-    }
-}
+```bash
+make test
 ```
 
-### Documentation
+### Run Tests with Coverage
 
-- Add godoc comments for exported functions
-- Update README.md for user-facing changes
-- Add examples for new features
-- Update CHANGELOG.md
+```bash
+make test-coverage
+```
+
+### Run Specific Tests
+
+```bash
+go test -v ./internal/detector/...
+```
+
+## Code Style
+
+- Follow standard Go conventions
+- Run `go fmt` before committing (pre-commit hook does this automatically)
+- Use meaningful variable and function names
+- Add comments for exported functions and types
+- Keep functions focused and small
+
+## Pull Request Guidelines
+
+1. **Title**: Use conventional commit format
+   - Good: `feat: add SARIF output format`
+   - Bad: `Added new feature`
+
+2. **Description**: Explain what and why
+   - What changes were made
+   - Why the changes were necessary
+   - Any breaking changes
+   - Related issues
+
+3. **Tests**: Include tests for new features
+   - Unit tests for new functions
+   - Integration tests for new features
+   - Update existing tests if behavior changes
+
+4. **Documentation**: Update relevant documentation
+   - README.md for user-facing changes
+   - Code comments for implementation details
+   - CHANGELOG.md (handled automatically by release-please)
+
+## Release Process
+
+We use [release-please](https://github.com/googleapis/release-please) for automated releases.
+
+### How It Works
+
+1. Commit changes using conventional commits
+2. Push to main branch (via merged PR)
+3. Release-please creates/updates a release PR
+4. When release PR is merged:
+   - Version is bumped automatically
+   - CHANGELOG is updated
+   - GitHub release is created
+   - Binaries are built and attached
+
+### Version Bumping
+
+- `feat:` → Minor version bump (1.0.0 → 1.1.0)
+- `fix:` → Patch version bump (1.0.0 → 1.0.1)
+- `feat!:` or `BREAKING CHANGE:` → Major version bump (1.0.0 → 2.0.0)
 
 ## Project Structure
 
 ```
 capture/
 ├── cmd/capture/          # Main application entry point
-├── internal/             # Internal packages
+│   └── cmd/             # CLI commands
+├── internal/            # Internal packages
 │   ├── detector/        # Language-specific detectors
-│   ├── diff/            # Comparison logic
-│   ├── dockerfile/      # Dockerfile analysis
-│   ├── parser/          # .env file parser
-│   ├── reporter/        # Output formatting
-│   ├── types/           # Shared types
-│   └── walker/          # File system traversal
-├── testdata/            # Test fixtures
-├── .github/workflows/   # CI/CD workflows
-└── docs/                # Additional documentation
+│   ├── diff/           # Comparison logic
+│   ├── dockerfile/     # Dockerfile analysis
+│   ├── parser/         # File parsers
+│   ├── reporter/       # Output formatting
+│   ├── types/          # Shared types and interfaces
+│   └── walker/         # File system traversal
+├── testdata/           # Test fixtures
+└── scripts/            # Development scripts
 ```
-
-## Adding New Features
-
-### Adding a New Language Detector
-
-1. Create detector in `internal/detector/`
-2. Implement `LanguageDetector` interface
-3. Add to `DetectorFactory`
-4. Write comprehensive tests
-5. Update documentation
-
-### Adding New Analysis Type
-
-1. Create new package in `internal/`
-2. Define clear interfaces
-3. Integrate into CLI pipeline
-4. Add tests and documentation
-5. Update README with examples
-
-## Testing
-
-### Running Specific Tests
-
-```bash
-# Run tests for specific package
-go test ./internal/detector
-
-# Run specific test
-go test -run TestJSDetector ./internal/detector
-
-# Run with verbose output
-go test -v ./...
-
-# Run with race detection
-go test -race ./...
-```
-
-### Writing Integration Tests
-
-Place integration tests in `cmd/capture/*_test.go`:
-
-```go
-func TestCLI_NewFeature(t *testing.T) {
-    binary := buildBinary(t)
-    // Test CLI behavior
-}
-```
-
-## Pull Request Process
-
-1. **Ensure all tests pass**
-2. **Update documentation**
-3. **Add entry to CHANGELOG.md**
-4. **Request review from maintainers**
-5. **Address review feedback**
-6. **Wait for CI checks to pass**
-7. **Maintainer will merge**
-
-### PR Checklist
-
-- [ ] Tests added/updated
-- [ ] Documentation updated
-- [ ] CHANGELOG.md updated
-- [ ] Code formatted (`go fmt`)
-- [ ] All tests passing
-- [ ] No linter warnings
-- [ ] Commit messages follow convention
-
-## Release Process
-
-Releases are automated via GitHub Actions:
-
-1. Update CHANGELOG.md
-2. Commit changes
-3. Create and push tag: `git tag v1.0.0 && git push origin v1.0.0`
-4. GitHub Actions builds and publishes release
 
 ## Getting Help
 
-- **Issues**: [GitHub Issues](https://github.com/yhaliwaizman/capture/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/yhaliwaizman/capture/discussions)
-- **Documentation**: See README.md and docs/
+- Open an issue for bugs or feature requests
+- Check existing issues before creating new ones
+- Join discussions in pull requests
+- Read the [README](README.md) for usage information
 
 ## Code of Conduct
 
 - Be respectful and inclusive
-- Welcome newcomers
-- Focus on constructive feedback
+- Provide constructive feedback
+- Focus on the code, not the person
 - Help others learn and grow
 
 ## License
 
 By contributing, you agree that your contributions will be licensed under the MIT License.
-
-## Recognition
-
-Contributors will be recognized in:
-- GitHub contributors page
-- Release notes
-- CHANGELOG.md (for significant contributions)
-
-Thank you for contributing to capture! 🎉

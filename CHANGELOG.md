@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.1/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.2](https://github.com/YhaliWaizman/Capture/compare/v1.0.1...v1.0.2) (2026-03-09)
+
+
+### Bug Fixes
+
+* add version to releaser ([216a14a](https://github.com/YhaliWaizman/Capture/commit/216a14a1dde558ee0f950032efa153920ec295af))
+* add version to releaser ([9c50427](https://github.com/YhaliWaizman/Capture/commit/9c50427480d0f0e5e78a93fcb84457c3c71d1701))
+
 ## [1.0.1](https://github.com/YhaliWaizman/Capture/compare/v1.0.0...v1.0.1) (2026-03-09)
 
 

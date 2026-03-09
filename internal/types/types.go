@@ -2,7 +2,7 @@ package types
 
 // Location represents a file path and line number where a variable is used
 type Location struct {
-	FilePath   string // Relative to root directory
+	FilePath   string // Relative to scan directory
 	LineNumber int    // 1-indexed line number
 }
 

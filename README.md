@@ -68,13 +68,13 @@ make install
 ### Basic Scan
 
 ```bash
-capture scan --root ./project --env-file .env
+capture scan --dir ./project --env-file .env
 ```
 
 ### With Ignore Patterns
 
 ```bash
-capture scan --root ./project --env-file .env --ignore vendor,tmp,cache
+capture scan --dir ./project --env-file .env --ignore vendor,tmp,cache
 ```
 
 ### Example Output
@@ -107,7 +107,7 @@ Dockerfile uses undeclared variables:
 
 ## Command-Line Options
 
-- `--root` (required): Root directory to scan for source files
+- `--dir` (required): Directory to scan for source files
 - `--env-file` (required): Path to the .env file
 - `--ignore` (optional): Comma-separated list of directories to ignore
 
@@ -201,14 +201,14 @@ The tool is designed for CI/CD pipelines with deterministic output and standard 
 # GitHub Actions example
 - name: Check environment variables
   run: |
-    ./capture scan --root . --env-file .env
+    ./capture scan --dir . --env-file .env
 ```
 
 ```bash
 # GitLab CI example
 check-env:
   script:
-    - ./capture scan --root . --env-file .env
+    - ./capture scan --dir . --env-file .env
 ```
 
 ## How It Works

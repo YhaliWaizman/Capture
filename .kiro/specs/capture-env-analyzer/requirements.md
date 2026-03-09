@@ -26,7 +26,7 @@ capture is a static analysis CLI tool that identifies mismatches between environ
 #### Acceptance Criteria
 
 1. THE CLI SHALL accept a command named "scan"
-2. WHEN the scan command is invoked, THE CLI SHALL require a --root flag with a directory path value
+2. WHEN the scan command is invoked, THE CLI SHALL require a --dir flag with a directory path value
 3. WHEN the scan command is invoked, THE CLI SHALL require an --env-file flag with a file path value
 4. THE CLI SHALL accept an optional --ignore flag with comma-separated directory names
 5. WHEN required flags are missing, THE CLI SHALL exit with code 2 and output an error message to stderr
@@ -40,7 +40,7 @@ capture is a static analysis CLI tool that identifies mismatches between environ
 1. WHEN no mismatches are detected, THE CLI SHALL exit with code 0
 2. WHEN declared and used variables differ, THE CLI SHALL exit with code 1
 3. WHEN the .env file does not exist, THE CLI SHALL exit with code 2
-4. WHEN the root directory does not exist, THE CLI SHALL exit with code 2
+4. WHEN the scan directory does not exist, THE CLI SHALL exit with code 2
 5. WHEN a permission error occurs, THE CLI SHALL exit with code 2
 
 ### Requirement 3: Parse Environment Variable Declarations
@@ -65,7 +65,7 @@ capture is a static analysis CLI tool that identifies mismatches between environ
 
 #### Acceptance Criteria
 
-1. WHEN a root directory is provided, THE File_Walker SHALL recursively traverse all subdirectories
+1. WHEN a scan directory is provided, THE File_Walker SHALL recursively traverse all subdirectories
 2. THE File_Walker SHALL NOT follow symbolic links
 3. THE File_Walker SHALL skip directories named .git
 4. THE File_Walker SHALL skip directories named node_modules
@@ -120,7 +120,7 @@ capture is a static analysis CLI tool that identifies mismatches between environ
 
 #### Acceptance Criteria
 
-1. WHEN a variable is detected, THE Language_Detector SHALL record the file path relative to the root directory
+1. WHEN a variable is detected, THE Language_Detector SHALL record the file path relative to the scan directory
 2. WHEN a variable is detected, THE Language_Detector SHALL record the line number
 3. WHEN a variable appears multiple times, THE Language_Detector SHALL record all locations
 4. THE Language_Detector SHALL produce a map from variable names to location lists

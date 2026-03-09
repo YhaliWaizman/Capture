@@ -56,7 +56,7 @@ install:
 
 # Run the tool (example usage)
 run:
-	@./capture scan --root . --env-file .env
+	@./capture scan --dir . --env-file .env
 
 # Display help
 help:

@@ -248,14 +248,14 @@ go test -race ./...
 go build -gcflags="all=-N -l" -o capture-debug ./cmd/capture
 
 # Use with delve
-dlv exec ./capture-debug -- scan --root . --env-file .env
+dlv exec ./capture-debug -- scan --dir . --env-file .env
 ```
 
 ### Verbose Output
 
 ```bash
 # Run with verbose logging
-./capture scan --root . --env-file .env --verbose
+./capture scan --dir . --env-file .env --verbose
 ```
 
 ## Troubleshooting

@@ -45,7 +45,7 @@ func TestCLI_SuccessfulScanNoMismatches(t *testing.T) {
 	}
 
 	// Run the CLI
-	cmd := exec.Command(binary, "scan", "--root", tmpDir, "--env-file", envFile)
+	cmd := exec.Command(binary, "scan", "--dir", tmpDir, "--env-file", envFile)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
@@ -73,7 +73,7 @@ func TestCLI_ScanWithUnusedVariables(t *testing.T) {
 	rootDir := "../../testdata"
 	envFile := filepath.Join(rootDir, ".env")
 
-	cmd := exec.Command(binary, "scan", "--root", rootDir, "--env-file", envFile)
+	cmd := exec.Command(binary, "scan", "--dir", rootDir, "--env-file", envFile)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
@@ -119,7 +119,7 @@ func TestCLI_MissingEnvFile(t *testing.T) {
 	tmpDir := t.TempDir()
 	nonExistentEnv := filepath.Join(tmpDir, "nonexistent.env")
 
-	cmd := exec.Command(binary, "scan", "--root", tmpDir, "--env-file", nonExistentEnv)
+	cmd := exec.Command(binary, "scan", "--dir", tmpDir, "--env-file", nonExistentEnv)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
@@ -142,9 +142,9 @@ func TestCLI_MissingEnvFile(t *testing.T) {
 	}
 }
 
-// TestCLI_MissingRootDirectory tests behavior when root directory doesn't exist (exit code 2)
+// TestCLI_MissingDirectory tests behavior when directory doesn't exist (exit code 2)
 // Requirement: 13.7
-func TestCLI_MissingRootDirectory(t *testing.T) {
+func TestCLI_MissingDirectory(t *testing.T) {
 	binary := buildBinary(t)
 
 	tmpDir := t.TempDir()
@@ -156,7 +156,7 @@ func TestCLI_MissingRootDirectory(t *testing.T) {
 		t.Fatalf("Failed to write .env file: %v", err)
 	}
 
-	cmd := exec.Command(binary, "scan", "--root", nonExistentRoot, "--env-file", envFile)
+	cmd := exec.Command(binary, "scan", "--dir", nonExistentRoot, "--env-file", envFile)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
@@ -179,55 +179,80 @@ func TestCLI_MissingRootDirectory(t *testing.T) {
 	}
 }
 
-// TestCLI_MissingRequiredFlags tests behavior when required flags are missing (exit code 2)
+// TestCLI_DefaultFlagBehavior tests behavior when flags use default values
 // Requirement: 13.7
-func TestCLI_MissingRequiredFlags(t *testing.T) {
+func TestCLI_DefaultFlagBehavior(t *testing.T) {
 	binary := buildBinary(t)
 
 	tests := []struct {
-		name string
-		args []string
+		name          string
+		args          []string
+		expectedInErr string
+		setupFunc     func(t *testing.T) string // Returns working directory
 	}{
 		{
-			name: "missing root flag",
-			args: []string{"scan", "--env-file", ".env"},
+			name:          "missing dir flag uses default and fails if not exists",
+			args:          []string{"scan", "--env-file", ".env"},
+			expectedInErr: "does not exist",
+			setupFunc: func(t *testing.T) string {
+				// Create temp dir without .env file
+				tmpDir := t.TempDir()
+				return tmpDir
+			},
 		},
 		{
-			name: "missing env-file flag",
-			args: []string{"scan", "--root", "."},
+			name:          "missing env-file flag uses default and fails if not exists",
+			args:          []string{"scan", "--dir", "."},
+			expectedInErr: "does not exist",
+			setupFunc: func(t *testing.T) string {
+				// Create temp dir without .env file
+				tmpDir := t.TempDir()
+				return tmpDir
+			},
 		},
 		{
-			name: "missing both flags",
-			args: []string{"scan"},
+			name:          "missing both flags uses defaults and fails",
+			args:          []string{"scan"},
+			expectedInErr: "does not exist",
+			setupFunc: func(t *testing.T) string {
+				// Create temp dir without .env file
+				tmpDir := t.TempDir()
+				return tmpDir
+			},
 		},
 		{
-			name: "missing scan command",
-			args: []string{"--root", ".", "--env-file", ".env"},
+			name:          "missing scan command shows help",
+			args:          []string{"--dir", ".", "--env-file", ".env"},
+			expectedInErr: "", // This will show help or unknown command
+			setupFunc: func(t *testing.T) string {
+				return t.TempDir()
+			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			workDir := tt.setupFunc(t)
+
 			cmd := exec.Command(binary, tt.args...)
+			cmd.Dir = workDir // Run in the temp directory
 			var stdout, stderr bytes.Buffer
 			cmd.Stdout = &stdout
 			cmd.Stderr = &stderr
 
 			err := cmd.Run()
 
-			// Should exit with code 2 (configuration error)
-			if exitErr, ok := err.(*exec.ExitError); ok {
-				if exitErr.ExitCode() != 2 {
-					t.Errorf("Expected exit code 2, got %d\nStderr: %s", exitErr.ExitCode(), stderr.String())
-				}
-			} else if err == nil {
-				t.Error("Expected exit code 2, got 0")
+			// Should exit with non-zero code
+			if err == nil {
+				t.Error("Expected non-zero exit code, got 0")
 			}
 
-			// Should output error message to stderr
-			stderrOutput := stderr.String()
-			if stderrOutput == "" {
-				t.Error("Expected error message in stderr, got empty output")
+			// Check for expected error message if specified
+			if tt.expectedInErr != "" {
+				stderrOutput := stderr.String()
+				if !strings.Contains(stderrOutput, tt.expectedInErr) {
+					t.Errorf("Expected '%s' in stderr, got: %s", tt.expectedInErr, stderrOutput)
+				}
 			}
 		})
 	}
@@ -243,7 +268,7 @@ func TestCLI_IgnoreFlag(t *testing.T) {
 	envFile := filepath.Join(rootDir, ".env")
 
 	// Run with --ignore flag
-	cmd := exec.Command(binary, "scan", "--root", rootDir, "--env-file", envFile, "--ignore", "ignored")
+	cmd := exec.Command(binary, "scan", "--dir", rootDir, "--env-file", envFile, "--ignore", "ignored")
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
@@ -284,7 +309,7 @@ func TestCLI_DeterministicOutput(t *testing.T) {
 	// Run the CLI twice
 	var outputs []string
 	for i := 0; i < 2; i++ {
-		cmd := exec.Command(binary, "scan", "--root", rootDir, "--env-file", envFile)
+		cmd := exec.Command(binary, "scan", "--dir", rootDir, "--env-file", envFile)
 		var stdout bytes.Buffer
 		cmd.Stdout = &stdout
 

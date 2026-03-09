@@ -49,10 +49,6 @@ func init() {
 	scanCmd.Flags().StringVar(&scanConfig.Dir, "dir", ".", "Directory to scan (required)")
 	scanCmd.Flags().StringVar(&scanConfig.EnvFile, "env-file", ".env", "Path to .env file (required)")
 	scanCmd.Flags().StringSliceVar(&scanConfig.Ignore, "ignore", []string{}, "Comma-separated list of directories to ignore")
-
-	// Mark required flags
-	scanCmd.MarkFlagRequired("dir")
-	scanCmd.MarkFlagRequired("env-file")
 }
 
 func runScan(cmd *cobra.Command, args []string) error {

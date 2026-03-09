@@ -35,3 +35,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI/CD integration examples
 
 [1.0.1]: https://github.com/yhaliwaizman/capture/releases/tag/v1.0.1
+

@@ -1,12 +1,8 @@
 name: CI/CD
 
 on:
-  push:
-    branches: [ main ]
   pull_request:
     branches: [ main ]
-  release:
-    types: [ created ]
 
 jobs:
   test:
@@ -36,72 +32,8 @@ jobs:
         run: go test -v -race -coverprofile=coverage.out ./...
 
       - name: Upload coverage
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v4
         with:
-          file: ./coverage.out
+          files: ./coverage.out
           flags: unittests
           fail_ci_if_error: false
-
-  build:
-    name: Build
-    runs-on: ubuntu-latest
-    needs: test
-    strategy:
-      matrix:
-        goos: [linux, darwin, windows]
-        goarch: [amd64, arm64]
-        exclude:
-          - goos: windows
-            goarch: arm64
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: '1.21'
-
-      - name: Build binary
-        env:
-          GOOS: ${{ matrix.goos }}
-          GOARCH: ${{ matrix.goarch }}
-        run: |
-          OUTPUT_NAME=capture-${{ matrix.goos }}-${{ matrix.goarch }}
-          if [ "${{ matrix.goos }}" = "windows" ]; then
-            OUTPUT_NAME="${OUTPUT_NAME}.exe"
-          fi
-          go build -o ${OUTPUT_NAME} -ldflags="-s -w" ./cmd/capture
-          
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: capture-${{ matrix.goos }}-${{ matrix.goarch }}
-          path: capture-*
-          retention-days: 7
-
-  release:
-    name: Release
-    runs-on: ubuntu-latest
-    needs: build
-    if: github.event_name == 'release'
-    permissions:
-      contents: write
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Download all artifacts
-        uses: actions/download-artifact@v3
-        with:
-          path: artifacts
-
-      - name: Display structure
-        run: ls -R artifacts
-
-      - name: Upload release assets
-        uses: softprops/action-gh-release@v1
-        with:
-          files: artifacts/**/*
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,4 +1,4 @@
-name: Release Please
+name: Release
 
 on:
   push:
@@ -10,36 +10,34 @@ permissions:
   pull-requests: write
 
 jobs:
-  release-please:
+  release:
     runs-on: ubuntu-latest
+
     steps:
-      - uses: google-github-actions/release-please-action@v4
+      - name: Release Please
         id: release
+        uses: googleapis/release-please-action@v4
         with:
           release-type: go
           package-name: capture
-          config-file: .github/config/release-please.json
-          manifest-file: .github/config/release-please-manifest.json
+          include-v-in-tag: true
 
-      # Trigger GoReleaser when a release is created
-      - name: Checkout code
+      - name: Checkout
         if: ${{ steps.release.outputs.release_created }}
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Set up Go
+      - name: Setup Go
         if: ${{ steps.release.outputs.release_created }}
         uses: actions/setup-go@v5
         with:
-          go-version: '1.21'
+          go-version: "1.22"
 
       - name: Run GoReleaser
         if: ${{ steps.release.outputs.release_created }}
-        uses: goreleaser/goreleaser-action@v5
+        uses: goreleaser/goreleaser-action@v6
         with:
-          distribution: goreleaser
-          version: latest
           args: release --clean
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.CAPTURE_GH_TOKEN1 }}

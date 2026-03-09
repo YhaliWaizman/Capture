@@ -154,7 +154,7 @@ This plan implements a static analysis CLI tool that detects environment variabl
 - [x] 8. Implement CLI component
   - [x] 8.1 Create CLI flag parser
     - Parse "scan" command
-    - Parse --root flag (required)
+    - Parse --dir flag (required)
     - Parse --env-file flag (required)
     - Parse --ignore flag (optional, comma-separated)
     - Validate required flags are present
@@ -163,7 +163,7 @@ This plan implements a static analysis CLI tool that detects environment variabl
   
   - [x] 8.2 Implement main execution flow
     - Validate .env file exists (exit code 2 if not)
-    - Validate root directory exists (exit code 2 if not)
+    - Validate scan directory exists (exit code 2 if not)
     - Handle permission errors (exit code 2)
     - Coordinate pipeline: Env_Parser → File_Walker → Language_Detector → Diff_Engine → Reporter
     - Exit with code 0 if no mismatches
@@ -177,7 +177,7 @@ This plan implements a static analysis CLI tool that detects environment variabl
     - Test scan with unused variables (exit code 1)
     - Test scan with missing variables (exit code 1)
     - Test missing .env file (exit code 2)
-    - Test missing root directory (exit code 2)
+    - Test missing scan directory (exit code 2)
     - Test --ignore flag functionality
     - Verify deterministic output
     - _Requirements: 13.7_

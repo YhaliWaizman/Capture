@@ -45,7 +45,7 @@ func TestCLI_SuccessfulScanNoMismatches(t *testing.T) {
 	}
 
 	// Run the CLI
-	cmd := exec.Command(binary, "scan", "--root", tmpDir, "--env-file", envFile)
+	cmd := exec.Command(binary, "scan", "--dir", tmpDir, "--env-file", envFile)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
@@ -73,7 +73,7 @@ func TestCLI_ScanWithUnusedVariables(t *testing.T) {
 	rootDir := "../../testdata"
 	envFile := filepath.Join(rootDir, ".env")
 
-	cmd := exec.Command(binary, "scan", "--root", rootDir, "--env-file", envFile)
+	cmd := exec.Command(binary, "scan", "--dir", rootDir, "--env-file", envFile)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
@@ -119,7 +119,7 @@ func TestCLI_MissingEnvFile(t *testing.T) {
 	tmpDir := t.TempDir()
 	nonExistentEnv := filepath.Join(tmpDir, "nonexistent.env")
 
-	cmd := exec.Command(binary, "scan", "--root", tmpDir, "--env-file", nonExistentEnv)
+	cmd := exec.Command(binary, "scan", "--dir", tmpDir, "--env-file", nonExistentEnv)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
@@ -142,9 +142,9 @@ func TestCLI_MissingEnvFile(t *testing.T) {
 	}
 }
 
-// TestCLI_MissingRootDirectory tests behavior when root directory doesn't exist (exit code 2)
+// TestCLI_MissingDirectory tests behavior when directory doesn't exist (exit code 2)
 // Requirement: 13.7
-func TestCLI_MissingRootDirectory(t *testing.T) {
+func TestCLI_MissingDirectory(t *testing.T) {
 	binary := buildBinary(t)
 
 	tmpDir := t.TempDir()
@@ -156,7 +156,7 @@ func TestCLI_MissingRootDirectory(t *testing.T) {
 		t.Fatalf("Failed to write .env file: %v", err)
 	}
 
-	cmd := exec.Command(binary, "scan", "--root", nonExistentRoot, "--env-file", envFile)
+	cmd := exec.Command(binary, "scan", "--dir", nonExistentRoot, "--env-file", envFile)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
@@ -189,12 +189,12 @@ func TestCLI_MissingRequiredFlags(t *testing.T) {
 		args []string
 	}{
 		{
-			name: "missing root flag",
+			name: "missing dir flag",
 			args: []string{"scan", "--env-file", ".env"},
 		},
 		{
 			name: "missing env-file flag",
-			args: []string{"scan", "--root", "."},
+			args: []string{"scan", "--dir", "."},
 		},
 		{
 			name: "missing both flags",
@@ -202,7 +202,7 @@ func TestCLI_MissingRequiredFlags(t *testing.T) {
 		},
 		{
 			name: "missing scan command",
-			args: []string{"--root", ".", "--env-file", ".env"},
+			args: []string{"--dir", ".", "--env-file", ".env"},
 		},
 	}
 
@@ -243,7 +243,7 @@ func TestCLI_IgnoreFlag(t *testing.T) {
 	envFile := filepath.Join(rootDir, ".env")
 
 	// Run with --ignore flag
-	cmd := exec.Command(binary, "scan", "--root", rootDir, "--env-file", envFile, "--ignore", "ignored")
+	cmd := exec.Command(binary, "scan", "--dir", rootDir, "--env-file", envFile, "--ignore", "ignored")
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
@@ -284,7 +284,7 @@ func TestCLI_DeterministicOutput(t *testing.T) {
 	// Run the CLI twice
 	var outputs []string
 	for i := 0; i < 2; i++ {
-		cmd := exec.Command(binary, "scan", "--root", rootDir, "--env-file", envFile)
+		cmd := exec.Command(binary, "scan", "--dir", rootDir, "--env-file", envFile)
 		var stdout bytes.Buffer
 		cmd.Stdout = &stdout
 

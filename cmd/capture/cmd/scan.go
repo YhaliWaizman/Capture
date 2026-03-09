@@ -19,7 +19,7 @@ import (
 
 // ScanConfig holds the configuration for the scan command
 type ScanConfig struct {
-	Root    string
+	Dir     string
 	EnvFile string
 	Ignore  []string
 }
@@ -37,8 +37,8 @@ The tool will:
   - Analyze Dockerfiles for ENV/ARG declarations
   - Detect variable usage in source code (JS, TS, Go, Python)
   - Report mismatches and inconsistencies`,
-	Example: `  capture scan --root ./project --env-file .env
-  capture scan --root . --env-file .env --ignore vendor,tmp`,
+	Example: `  capture scan --dir ./project --env-file .env
+  capture scan --dir . --env-file .env --ignore vendor,tmp`,
 	SilenceUsage:  true,
 	SilenceErrors: true,
 	RunE:          runScan,
@@ -46,12 +46,12 @@ The tool will:
 
 func init() {
 	// Define flags
-	scanCmd.Flags().StringVar(&scanConfig.Root, "root", "", "Root directory to scan (required)")
-	scanCmd.Flags().StringVar(&scanConfig.EnvFile, "env-file", "", "Path to .env file (required)")
+	scanCmd.Flags().StringVar(&scanConfig.Dir, "dir", ".", "Directory to scan (required)")
+	scanCmd.Flags().StringVar(&scanConfig.EnvFile, "env-file", ".env", "Path to .env file (required)")
 	scanCmd.Flags().StringSliceVar(&scanConfig.Ignore, "ignore", []string{}, "Comma-separated list of directories to ignore")
 
 	// Mark required flags
-	scanCmd.MarkFlagRequired("root")
+	scanCmd.MarkFlagRequired("dir")
 	scanCmd.MarkFlagRequired("env-file")
 }
 
@@ -62,16 +62,16 @@ func runScan(cmd *cobra.Command, args []string) error {
 		return NewExitError(err, 2)
 	}
 
-	// Validate root directory exists
-	if info, err := os.Stat(scanConfig.Root); os.IsNotExist(err) {
-		fmt.Fprintf(os.Stderr, "Error: root directory does not exist: %s\n", scanConfig.Root)
+	// Validate directory exists
+	if info, err := os.Stat(scanConfig.Dir); os.IsNotExist(err) {
+		fmt.Fprintf(os.Stderr, "Error: directory does not exist: %s\n", scanConfig.Dir)
 		return NewExitError(err, 2)
 	} else if err != nil {
 		// Handle permission errors
-		fmt.Fprintf(os.Stderr, "Error: cannot access root directory: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Error: cannot access directory: %v\n", err)
 		return NewExitError(err, 2)
 	} else if !info.IsDir() {
-		fmt.Fprintf(os.Stderr, "Error: root path is not a directory: %s\n", scanConfig.Root)
+		fmt.Fprintf(os.Stderr, "Error: path is not a directory: %s\n", scanConfig.Dir)
 		return NewExitError(fmt.Errorf("not a directory"), 2)
 	}
 
@@ -108,7 +108,7 @@ func executeScan(config *ScanConfig) int {
 	}
 
 	// Step 2: Walk directory tree to find source files
-	files, err := fileWalker.Walk(config.Root, config.Ignore)
+	files, err := fileWalker.Walk(config.Dir, config.Ignore)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: failed to walk directory: %v\n", err)
 		return 2

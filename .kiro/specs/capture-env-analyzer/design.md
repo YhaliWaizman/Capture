@@ -50,7 +50,7 @@ graph LR
 
 1. CLI validates flags and checks file/directory existence
 2. Env_Parser reads .env file → map[string]bool of declared variables
-3. File_Walker traverses root directory → []string of file paths
+3. File_Walker traverses scan directory → []string of file paths
 4. Language_Detector processes each file → map[string][]Location
 5. Diff_Engine compares sets → DiffResult{Unused: []string, Missing: []string}
 6. Reporter formats and outputs results
@@ -329,7 +329,7 @@ func (r *ReporterImpl) Report(data ReportData) {
 - Examples: `API_KEY`, `DATABASE_URL`, `MAX_RETRIES`
 
 **Location**: Struct with FilePath (string) and LineNumber (int)
-- FilePath is relative to root directory
+- FilePath is relative to scan directory
 - LineNumber is 1-indexed
 - Sorted by FilePath then LineNumber for determinism
 

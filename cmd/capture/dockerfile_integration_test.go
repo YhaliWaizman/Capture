@@ -17,7 +17,7 @@ func TestCLI_DockerfileIntegration(t *testing.T) {
 	rootDir := "../../testdata"
 	envFile := filepath.Join(rootDir, ".env")
 
-	cmd := exec.Command(binary, "scan", "--root", rootDir, "--env-file", envFile)
+	cmd := exec.Command(binary, "scan", "--dir", rootDir, "--env-file", envFile)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
@@ -83,7 +83,7 @@ RUN echo "$API_KEY"
 		t.Fatalf("Failed to write Dockerfile: %v", err)
 	}
 
-	cmd := exec.Command(binary, "scan", "--root", tmpDir, "--env-file", envFile)
+	cmd := exec.Command(binary, "scan", "--dir", tmpDir, "--env-file", envFile)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
@@ -143,7 +143,7 @@ RUN echo "Runtime: $RUNTIME_ENV"
 		t.Fatalf("Failed to write Dockerfile: %v", err)
 	}
 
-	cmd := exec.Command(binary, "scan", "--root", tmpDir, "--env-file", envFile)
+	cmd := exec.Command(binary, "scan", "--dir", tmpDir, "--env-file", envFile)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
@@ -191,7 +191,7 @@ RUN echo "$KEY1 $KEY2 $KEY3"
 		t.Fatalf("Failed to write Dockerfile: %v", err)
 	}
 
-	cmd := exec.Command(binary, "scan", "--root", tmpDir, "--env-file", envFile)
+	cmd := exec.Command(binary, "scan", "--dir", tmpDir, "--env-file", envFile)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr

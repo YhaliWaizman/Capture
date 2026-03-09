@@ -28,9 +28,9 @@ builds:
         goarch: arm
     ldflags:
       - -s -w
-      - -X main.version={{.Version}}
-      - -X main.commit={{.Commit}}
-      - -X main.date={{.Date}}
+      - -X github.com/yhaliwaizman/capture/cmd/capture/cmd.version.version={{.Version}}
+      - -X github.com/yhaliwaizman/capture/cmd/capture/cmd.version.commit={{.Commit}}
+      - -X github.com/yhaliwaizman/capture/cmd/capture/cmd.version.date={{.Date}}
 
 archives:
   - id: capture
@@ -57,7 +57,7 @@ snapshot:
   name_template: "{{ incpatch .Version }}-next"
 
 changelog:
-  sort: asc
+  sort: desc
   filters:
     exclude:
       - '^docs:'
@@ -97,7 +97,7 @@ brews:
       owner: yhaliwaizman
       name: homebrew-tap
     skip_upload: auto
-    folder: Formula
+    folder: .
     homepage: https://github.com/yhaliwaizman/capture
     description: "Static analysis CLI tool for environment variable mismatches"
     license: MIT

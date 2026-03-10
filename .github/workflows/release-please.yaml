@@ -40,4 +40,4 @@ jobs:
         with:
           args: release --clean
         env:
-          GITHUB_TOKEN: ${{ secrets.CAPTURE_GH_TOKEN1 }}
+          GITHUB_TOKEN: ${{ secrets.CAPTURE_GH_TOKEN }}

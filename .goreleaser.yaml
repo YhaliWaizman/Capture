@@ -98,7 +98,7 @@ brews:
       owner: yhaliwaizman
       name: homebrew-tap
     skip_upload: auto
-    folder: .
+    directory: .
     homepage: https://github.com/yhaliwaizman/capture
     description: "Static analysis CLI tool for environment variable mismatches"
     license: MIT

@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.1/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.4](https://github.com/YhaliWaizman/Capture/compare/v1.0.3...v1.0.4) (2026-03-10)
+
+
+### Bug Fixes
+
+* typo ([b03fc88](https://github.com/YhaliWaizman/Capture/commit/b03fc8823a936591767071b285442abd5991cd58))
+* typo ([07407b6](https://github.com/YhaliWaizman/Capture/commit/07407b624e5b50f31e945298ed140305f21e9298))
+
 ## [1.0.3](https://github.com/YhaliWaizman/Capture/compare/v1.0.2...v1.0.3) (2026-03-10)
 
 

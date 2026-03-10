@@ -110,6 +110,7 @@ Dockerfile uses undeclared variables:
 - `--dir` (required): Directory to scan for source files
 - `--env-file` (required): Path to the .env file
 - `--ignore` (optional): Comma-separated list of directories to ignore
+- `--format` (optional): Output format - `text` (default) or `json`
 
 ## Exit Codes
 
@@ -197,6 +198,7 @@ make clean
 
 The tool is designed for CI/CD pipelines with deterministic output and standard exit codes:
 
+**Text Format (Human-Readable):**
 ```yaml
 # GitHub Actions example
 - name: Check environment variables
@@ -204,11 +206,20 @@ The tool is designed for CI/CD pipelines with deterministic output and standard 
     ./capture scan --dir . --env-file .env
 ```
 
+**JSON Format (Machine-Readable):**
+```yaml
+# GitHub Actions with JSON parsing
+- name: Check environment variables
+  run: |
+    OUTPUT=$(./capture scan --dir . --env-file .env --format json)
+    echo "$OUTPUT" | jq '.summary.mismatches_found'
+```
+
 ```bash
-# GitLab CI example
+# GitLab CI example with JSON
 check-env:
   script:
-    - ./capture scan --dir . --env-file .env
+    - ./capture scan -dir . --env-file .env
 ```
 
 ## How It Works

@@ -1,6 +1,7 @@
 package reporter
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"sort"
@@ -11,6 +12,7 @@ import (
 // Reporter defines the interface for formatting and outputting analysis results
 type Reporter interface {
 	Report(data types.ReportData)
+	ReportJSON(data types.ReportData) error
 }
 
 // ReporterImpl implements the Reporter interface
@@ -68,4 +70,87 @@ func (r *ReporterImpl) Report(data types.ReportData) {
 			fmt.Fprintf(r.out, "- %s (%s:%d)\n", varName, location.FilePath, location.LineNumber)
 		}
 	}
+}
+
+// ReportJSON formats and outputs the analysis results as JSON
+func (r *ReporterImpl) ReportJSON(data types.ReportData) error {
+	// Build missing variables with all locations
+	missing := make([]types.MissingVariable, 0, len(data.Missing))
+	missingVars := make([]string, 0, len(data.Missing))
+	for v := range data.Missing {
+		missingVars = append(missingVars, v)
+	}
+	sort.Strings(missingVars)
+
+	for _, varName := range missingVars {
+		locations := data.AllLocations[varName]
+		missing = append(missing, types.MissingVariable{
+			Variable:  varName,
+			Locations: locations,
+		})
+	}
+
+	// Build code uses not in docker
+	codeUsesNotInDocker := make([]types.MissingVariable, 0, len(data.CodeUsesNotInDocker))
+	codeVars := make([]string, 0, len(data.CodeUsesNotInDocker))
+	for v := range data.CodeUsesNotInDocker {
+		codeVars = append(codeVars, v)
+	}
+	sort.Strings(codeVars)
+
+	for _, varName := range codeVars {
+		locations := data.CodeUsesNotInDocker[varName]
+		codeUsesNotInDocker = append(codeUsesNotInDocker, types.MissingVariable{
+			Variable:  varName,
+			Locations: locations,
+		})
+	}
+
+	// Build docker uses undeclared
+	dockerUsesUndeclared := make([]types.DockerUndeclaredVar, 0, len(data.DockerUsesUndeclared))
+	dockerVars := make([]string, 0, len(data.DockerUsesUndeclared))
+	for v := range data.DockerUsesUndeclared {
+		dockerVars = append(dockerVars, v)
+	}
+	sort.Strings(dockerVars)
+
+	for _, varName := range dockerVars {
+		location := data.DockerUsesUndeclared[varName]
+		dockerUsesUndeclared = append(dockerUsesUndeclared, types.DockerUndeclaredVar{
+			Variable: varName,
+			Location: location,
+		})
+	}
+
+	// Calculate total mismatches
+	mismatchesFound := len(data.Unused) + len(data.Missing) +
+		len(data.CodeUsesNotInDocker) + len(data.DockerDeclaresUnused) +
+		len(data.DockerUsesUndeclared)
+
+	// Build JSON output
+	output := types.JSONOutput{
+		Summary: types.Summary{
+			FilesScanned:      data.FilesScanned,
+			VariablesDeclared: data.VariablesDeclared,
+			VariablesUsed:     data.VariablesUsed,
+			MismatchesFound:   mismatchesFound,
+		},
+		Unused:  data.Unused,
+		Missing: missing,
+		DockerfileIssues: types.DockerfileIssues{
+			CodeUsesNotInDocker:  codeUsesNotInDocker,
+			DockerDeclaresUnused: data.DockerDeclaresUnused,
+			DockerUsesUndeclared: dockerUsesUndeclared,
+		},
+	}
+
+	// Marshal to JSON with indentation
+	jsonBytes, err := json.MarshalIndent(output, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal JSON: %w", err)
+	}
+
+	// Write to output
+	fmt.Fprintln(r.out, string(jsonBytes))
+	return nil
 }

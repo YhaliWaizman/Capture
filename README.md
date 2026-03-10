@@ -219,7 +219,7 @@ The tool is designed for CI/CD pipelines with deterministic output and standard 
 # GitLab CI example with JSON
 check-env:
   script:
-    - ./capture scan -dir . --env-file .env
+    - ./capture scan --dir . --env-file .env
 ```
 
 ## How It Works

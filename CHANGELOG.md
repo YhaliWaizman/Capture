@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.1/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0](https://github.com/YhaliWaizman/Capture/compare/v1.0.4...v1.1.0) (2026-03-11)
+
+
+### Features
+
+* **scan:** add JSON output format support ([5f7c2da](https://github.com/YhaliWaizman/Capture/commit/5f7c2dabda3b8d63d9447343568339b07e32d314))
+* **scan:** add JSON output format support ([feb938e](https://github.com/YhaliWaizman/Capture/commit/feb938e34043978ddd3a04681dbc5270ec1d957f))
+
+
+### Bug Fixes
+
+* correct -dir flag to --dir in GitLab CI README example ([2556edf](https://github.com/YhaliWaizman/Capture/commit/2556edf1a3a835adc23a5aa4c46a92da5be3d284))
+
 ## [1.0.4](https://github.com/YhaliWaizman/Capture/compare/v1.0.3...v1.0.4) (2026-03-10)
 
 

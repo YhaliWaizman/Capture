@@ -22,6 +22,7 @@ type ScanConfig struct {
 	Dir     string
 	EnvFile string
 	Ignore  []string
+	Format  string
 }
 
 var scanConfig ScanConfig
@@ -38,7 +39,8 @@ The tool will:
   - Detect variable usage in source code (JS, TS, Go, Python)
   - Report mismatches and inconsistencies`,
 	Example: `  capture scan --dir ./project --env-file .env
-  capture scan --dir . --env-file .env --ignore vendor,tmp`,
+  capture scan --dir . --env-file .env --ignore vendor,tmp
+  capture scan --dir . --env-file .env --format json`,
 	SilenceUsage:  true,
 	SilenceErrors: true,
 	RunE:          runScan,
@@ -49,9 +51,16 @@ func init() {
 	scanCmd.Flags().StringVar(&scanConfig.Dir, "dir", ".", "Directory to scan (required)")
 	scanCmd.Flags().StringVar(&scanConfig.EnvFile, "env-file", ".env", "Path to .env file (required)")
 	scanCmd.Flags().StringSliceVar(&scanConfig.Ignore, "ignore", []string{}, "Comma-separated list of directories to ignore")
+	scanCmd.Flags().StringVar(&scanConfig.Format, "format", "text", "Output format: text or json")
 }
 
 func runScan(cmd *cobra.Command, args []string) error {
+	// Validate format flag
+	if scanConfig.Format != "text" && scanConfig.Format != "json" {
+		fmt.Fprintf(os.Stderr, "Error: invalid format '%s'. Must be 'text' or 'json'\n", scanConfig.Format)
+		return NewExitError(fmt.Errorf("invalid format"), 2)
+	}
+
 	// Validate .env file exists
 	if _, err := os.Stat(scanConfig.EnvFile); os.IsNotExist(err) {
 		fmt.Fprintf(os.Stderr, "Error: .env file does not exist: %s\n", scanConfig.EnvFile)
@@ -221,8 +230,15 @@ func executeScan(config *ScanConfig) int {
 
 	// Step 5: Prepare report data with first location for each missing variable
 	reportData := types.ReportData{
-		Unused:  diffResult.Unused,
-		Missing: make(map[string]types.Location),
+		Unused:               diffResult.Unused,
+		Missing:              make(map[string]types.Location),
+		AllLocations:         allLocations,
+		FilesScanned:         len(sourceFiles) + len(dockerfiles),
+		VariablesDeclared:    len(declared),
+		VariablesUsed:        len(used),
+		CodeUsesNotInDocker:  make(map[string][]types.Location),
+		DockerDeclaresUnused: dockerDeclaredNotUsed,
+		DockerUsesUndeclared: dockerUsedUndeclared,
 	}
 
 	for _, varName := range diffResult.Missing {
@@ -231,31 +247,46 @@ func executeScan(config *ScanConfig) int {
 		}
 	}
 
-	// Step 6: Generate report
-	rep.Report(reportData)
+	// Add code uses not in docker with locations
+	for _, varName := range codeUsedNotInDocker {
+		if locs, ok := allLocations[varName]; ok {
+			reportData.CodeUsesNotInDocker[varName] = locs
+		}
+	}
 
-	// Step 6.5: Report Docker-specific mismatches
-	if len(codeUsedNotInDocker) > 0 {
-		fmt.Fprintln(os.Stdout, "\nCode uses variables not in Dockerfile or .env:")
-		for _, varName := range codeUsedNotInDocker {
-			if locs, ok := allLocations[varName]; ok && len(locs) > 0 {
-				fmt.Fprintf(os.Stdout, "- %s (%s:%d)\n", varName, locs[0].FilePath, locs[0].LineNumber)
+	// Step 6: Generate report based on format
+	if config.Format == "json" {
+		if err := rep.ReportJSON(reportData); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: failed to generate JSON report: %v\n", err)
+			return 2
+		}
+	} else {
+		// Text format (default)
+		rep.Report(reportData)
+
+		// Step 6.5: Report Docker-specific mismatches for text format
+		if len(codeUsedNotInDocker) > 0 {
+			fmt.Fprintln(os.Stdout, "\nCode uses variables not in Dockerfile or .env:")
+			for _, varName := range codeUsedNotInDocker {
+				if locs, ok := allLocations[varName]; ok && len(locs) > 0 {
+					fmt.Fprintf(os.Stdout, "- %s (%s:%d)\n", varName, locs[0].FilePath, locs[0].LineNumber)
+				}
 			}
 		}
-	}
 
-	if len(dockerDeclaredNotUsed) > 0 {
-		fmt.Fprintln(os.Stdout, "\nDockerfile declares but code doesn't use:")
-		for _, varName := range dockerDeclaredNotUsed {
-			fmt.Fprintf(os.Stdout, "- %s\n", varName)
+		if len(dockerDeclaredNotUsed) > 0 {
+			fmt.Fprintln(os.Stdout, "\nDockerfile declares but code doesn't use:")
+			for _, varName := range dockerDeclaredNotUsed {
+				fmt.Fprintf(os.Stdout, "- %s\n", varName)
+			}
 		}
-	}
 
-	if len(dockerUsedUndeclared) > 0 {
-		fmt.Fprintln(os.Stdout, "\nDockerfile uses undeclared variables:")
-		for _, varName := range dockerUsedUndeclaredKeys {
-			location := dockerUsedUndeclared[varName]
-			fmt.Fprintf(os.Stdout, "- %s (%s:%d)\n", varName, location.FilePath, location.LineNumber)
+		if len(dockerUsedUndeclared) > 0 {
+			fmt.Fprintln(os.Stdout, "\nDockerfile uses undeclared variables:")
+			for _, varName := range dockerUsedUndeclaredKeys {
+				location := dockerUsedUndeclared[varName]
+				fmt.Fprintf(os.Stdout, "- %s (%s:%d)\n", varName, location.FilePath, location.LineNumber)
+			}
 		}
 	}
 

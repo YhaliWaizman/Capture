@@ -236,3 +236,124 @@ func TestReporterImpl_ReportJSON_OutputStructure(t *testing.T) {
 		t.Errorf("Missing[0].Locations length = %d, want 2", len(result.Missing[0].Locations))
 	}
 }
+
+func TestReporterImpl_ReportJSON_NilSliceHandling(t *testing.T) {
+	// Test that nil slices are normalized to empty arrays in JSON output
+	data := types.ReportData{
+		Unused:               nil, // nil slice
+		Missing:              map[string]types.Location{},
+		AllLocations:         map[string][]types.Location{},
+		FilesScanned:         10,
+		VariablesDeclared:    5,
+		VariablesUsed:        5,
+		CodeUsesNotInDocker:  map[string][]types.Location{},
+		DockerDeclaresUnused: nil, // nil slice
+		DockerUsesUndeclared: map[string]types.Location{},
+	}
+
+	var out bytes.Buffer
+	var errOut bytes.Buffer
+	r := NewReporter(&out, &errOut)
+
+	err := r.ReportJSON(data)
+	if err != nil {
+		t.Fatalf("ReportJSON() error = %v", err)
+	}
+
+	// Parse JSON output
+	var result types.JSONOutput
+	if err := json.Unmarshal(out.Bytes(), &result); err != nil {
+		t.Fatalf("Failed to unmarshal JSON: %v\nOutput: %s", err, out.String())
+	}
+
+	// Verify nil slices are marshaled as empty arrays, not null
+	jsonStr := out.String()
+	if bytes.Contains(out.Bytes(), []byte(`"unused": null`)) {
+		t.Error("Expected 'unused' to be an empty array [], got null")
+	}
+	if bytes.Contains(out.Bytes(), []byte(`"docker_declares_unused": null`)) {
+		t.Error("Expected 'docker_declares_unused' to be an empty array [], got null")
+	}
+
+	// Verify the parsed result has empty slices
+	if result.Unused == nil {
+		t.Error("Expected Unused to be empty slice, got nil")
+	}
+	if len(result.Unused) != 0 {
+		t.Errorf("Expected Unused length 0, got %d", len(result.Unused))
+	}
+	if result.DockerfileIssues.DockerDeclaresUnused == nil {
+		t.Error("Expected DockerDeclaresUnused to be empty slice, got nil")
+	}
+	if len(result.DockerfileIssues.DockerDeclaresUnused) != 0 {
+		t.Errorf("Expected DockerDeclaresUnused length 0, got %d", len(result.DockerfileIssues.DockerDeclaresUnused))
+	}
+
+	t.Logf("JSON output:\n%s", jsonStr)
+}
+
+func TestReporterImpl_ReportJSON_NilLocations(t *testing.T) {
+	// Test that nil locations in AllLocations are handled gracefully
+	data := types.ReportData{
+		Unused: []string{},
+		Missing: map[string]types.Location{
+			"MISSING_VAR": {FilePath: "app.js", LineNumber: 10},
+		},
+		AllLocations: map[string][]types.Location{
+			// MISSING_VAR is not in AllLocations - should fallback to Missing location
+		},
+		FilesScanned:         10,
+		VariablesDeclared:    5,
+		VariablesUsed:        6,
+		CodeUsesNotInDocker:  map[string][]types.Location{},
+		DockerDeclaresUnused: []string{},
+		DockerUsesUndeclared: map[string]types.Location{},
+	}
+
+	var out bytes.Buffer
+	var errOut bytes.Buffer
+	r := NewReporter(&out, &errOut)
+
+	err := r.ReportJSON(data)
+	if err != nil {
+		t.Fatalf("ReportJSON() error = %v", err)
+	}
+
+	// Parse JSON output
+	var result types.JSONOutput
+	if err := json.Unmarshal(out.Bytes(), &result); err != nil {
+		t.Fatalf("Failed to unmarshal JSON: %v\nOutput: %s", err, out.String())
+	}
+
+	// Verify locations is not null
+	if len(result.Missing) != 1 {
+		t.Fatalf("Expected 1 missing variable, got %d", len(result.Missing))
+	}
+
+	missingVar := result.Missing[0]
+	if missingVar.Variable != "MISSING_VAR" {
+		t.Errorf("Expected variable MISSING_VAR, got %s", missingVar.Variable)
+	}
+
+	// Should have fallback location from Missing map
+	if missingVar.Locations == nil {
+		t.Error("Expected Locations to be non-nil")
+	}
+	if len(missingVar.Locations) != 1 {
+		t.Errorf("Expected 1 location (fallback), got %d", len(missingVar.Locations))
+	}
+	if len(missingVar.Locations) > 0 {
+		loc := missingVar.Locations[0]
+		if loc.FilePath != "app.js" || loc.LineNumber != 10 {
+			t.Errorf("Expected location app.js:10, got %s:%d", loc.FilePath, loc.LineNumber)
+		}
+	}
+
+	// Verify JSON doesn't contain null for locations
+	jsonStr := out.String()
+	if bytes.Contains(out.Bytes(), []byte(`"locations": null`)) {
+		t.Error("Expected 'locations' to be an array, got null")
+	}
+
+	t.Logf("JSON output:\n%s", jsonStr)
+}

@@ -74,6 +74,17 @@ func (r *ReporterImpl) Report(data types.ReportData) {
 
 // ReportJSON formats and outputs the analysis results as JSON
 func (r *ReporterImpl) ReportJSON(data types.ReportData) error {
+	// Normalize nil slices to empty slices for consistent JSON output
+	unused := data.Unused
+	if unused == nil {
+		unused = []string{}
+	}
+
+	dockerDeclaresUnused := data.DockerDeclaresUnused
+	if dockerDeclaresUnused == nil {
+		dockerDeclaresUnused = []string{}
+	}
+
 	// Build missing variables with all locations
 	missing := make([]types.MissingVariable, 0, len(data.Missing))
 	missingVars := make([]string, 0, len(data.Missing))
@@ -84,6 +95,15 @@ func (r *ReporterImpl) ReportJSON(data types.ReportData) error {
 
 	for _, varName := range missingVars {
 		locations := data.AllLocations[varName]
+		// Ensure locations is never nil - use empty slice if not found
+		if locations == nil {
+			// Fallback: use the single location from Missing map if AllLocations is empty
+			if loc, ok := data.Missing[varName]; ok {
+				locations = []types.Location{loc}
+			} else {
+				locations = []types.Location{}
+			}
+		}
 		missing = append(missing, types.MissingVariable{
 			Variable:  varName,
 			Locations: locations,
@@ -100,6 +120,10 @@ func (r *ReporterImpl) ReportJSON(data types.ReportData) error {
 
 	for _, varName := range codeVars {
 		locations := data.CodeUsesNotInDocker[varName]
+		// Ensure locations is never nil
+		if locations == nil {
+			locations = []types.Location{}
+		}
 		codeUsesNotInDocker = append(codeUsesNotInDocker, types.MissingVariable{
 			Variable:  varName,
 			Locations: locations,
@@ -123,9 +147,9 @@ func (r *ReporterImpl) ReportJSON(data types.ReportData) error {
 	}
 
 	// Calculate total mismatches
-	mismatchesFound := len(data.Unused) + len(data.Missing) +
-		len(data.CodeUsesNotInDocker) + len(data.DockerDeclaresUnused) +
-		len(data.DockerUsesUndeclared)
+	mismatchesFound := len(unused) + len(missing) +
+		len(codeUsesNotInDocker) + len(dockerDeclaresUnused) +
+		len(dockerUsesUndeclared)
 
 	// Build JSON output
 	output := types.JSONOutput{
@@ -135,11 +159,11 @@ func (r *ReporterImpl) ReportJSON(data types.ReportData) error {
 			VariablesUsed:     data.VariablesUsed,
 			MismatchesFound:   mismatchesFound,
 		},
-		Unused:  data.Unused,
+		Unused:  unused,
 		Missing: missing,
 		DockerfileIssues: types.DockerfileIssues{
 			CodeUsesNotInDocker:  codeUsesNotInDocker,
-			DockerDeclaresUnused: data.DockerDeclaresUnused,
+			DockerDeclaresUnused: dockerDeclaresUnused,
 			DockerUsesUndeclared: dockerUsesUndeclared,
 		},
 	}

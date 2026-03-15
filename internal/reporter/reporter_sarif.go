@@ -74,7 +74,7 @@ func (r *ReporterImpl) ReportSARIF(data types.ReportData) error {
 
 // buildSARIFRules returns the filtered, sorted rules array for the given active rule IDs.
 func buildSARIFRules(activeRuleIDs map[string]bool) []types.SARIFReportingDescriptor {
-	var rules []types.SARIFReportingDescriptor
+	rules := []types.SARIFReportingDescriptor{}
 	for _, def := range sarifRules {
 		if !activeRuleIDs[def.id] {
 			continue

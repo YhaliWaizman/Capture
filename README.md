@@ -110,7 +110,7 @@ Dockerfile uses undeclared variables:
 - `--dir` (required): Directory to scan for source files
 - `--env-file` (required): Path to the .env file
 - `--ignore` (optional): Comma-separated list of directories to ignore
-- `--format` (optional): Output format - `text` (default) or `json`
+- `--format` (optional): Output format - `text` (default), `json`, or `sarif`
 
 ## Exit Codes
 
@@ -221,6 +221,20 @@ check-env:
   script:
     - ./capture scan --dir . --env-file .env
 ```
+
+**SARIF Format (GitHub Code Scanning):**
+```yaml
+# GitHub Actions with SARIF upload
+- name: Run capture scan
+  run: capture scan --dir . --env-file .env --format sarif > results.sarif
+
+- name: Upload SARIF results
+  uses: github/codeql-action/upload-sarif@v3
+  with:
+    sarif_file: results.sarif
+```
+
+See [docs/SARIF_OUTPUT.md](docs/SARIF_OUTPUT.md) for the full SARIF output format documentation.
 
 ## How It Works
 

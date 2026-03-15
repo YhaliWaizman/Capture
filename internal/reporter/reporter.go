@@ -13,6 +13,7 @@ import (
 type Reporter interface {
 	Report(data types.ReportData)
 	ReportJSON(data types.ReportData) error
+	ReportSARIF(data types.ReportData) error
 }
 
 // ReporterImpl implements the Reporter interface

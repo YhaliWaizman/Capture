@@ -51,13 +51,13 @@ func init() {
 	scanCmd.Flags().StringVar(&scanConfig.Dir, "dir", ".", "Directory to scan (required)")
 	scanCmd.Flags().StringVar(&scanConfig.EnvFile, "env-file", ".env", "Path to .env file (required)")
 	scanCmd.Flags().StringSliceVar(&scanConfig.Ignore, "ignore", []string{}, "Comma-separated list of directories to ignore")
-	scanCmd.Flags().StringVar(&scanConfig.Format, "format", "text", "Output format: text or json")
+	scanCmd.Flags().StringVar(&scanConfig.Format, "format", "text", "Output format: text, json, or sarif")
 }
 
 func runScan(cmd *cobra.Command, args []string) error {
 	// Validate format flag
-	if scanConfig.Format != "text" && scanConfig.Format != "json" {
-		fmt.Fprintf(os.Stderr, "Error: invalid format '%s'. Must be 'text' or 'json'\n", scanConfig.Format)
+	if scanConfig.Format != "text" && scanConfig.Format != "json" && scanConfig.Format != "sarif" {
+		fmt.Fprintf(os.Stderr, "Error: invalid format '%s'. Must be 'text', 'json', or 'sarif'\n", scanConfig.Format)
 		return NewExitError(fmt.Errorf("invalid format"), 2)
 	}
 
@@ -255,12 +255,18 @@ func executeScan(config *ScanConfig) int {
 	}
 
 	// Step 6: Generate report based on format
-	if config.Format == "json" {
+	switch config.Format {
+	case "json":
 		if err := rep.ReportJSON(reportData); err != nil {
 			fmt.Fprintf(os.Stderr, "Error: failed to generate JSON report: %v\n", err)
 			return 2
 		}
-	} else {
+	case "sarif":
+		if err := rep.ReportSARIF(reportData); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: failed to generate SARIF report: %v\n", err)
+			return 2
+		}
+	default:
 		// Text format (default)
 		rep.Report(reportData)
 

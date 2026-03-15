@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.1/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.1](https://github.com/YhaliWaizman/Capture/compare/v1.1.0...v1.1.1) (2026-03-15)
+
+
+### Bug Fixes
+
+* **scan:** add SARIF 2.1.0 output format support ([5ce3881](https://github.com/YhaliWaizman/Capture/commit/5ce3881761b624863fac5ff53934f1e24ce277b5))
+* **scan:** add SARIF 2.1.0 output format support ([c24ab6c](https://github.com/YhaliWaizman/Capture/commit/c24ab6c6668f9d23fe72ab740036ae58cb03508b))
+
 ## [1.1.0](https://github.com/YhaliWaizman/Capture/compare/v1.0.4...v1.1.0) (2026-03-11)
 
 

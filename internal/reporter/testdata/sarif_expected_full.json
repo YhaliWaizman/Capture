@@ -1,0 +1,134 @@
+{
+  "version": "2.1.0",
+  "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/main/sarif-2.1/schema/sarif-schema-2.1.0.json",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "capture",
+          "informationUri": "https://github.com/syncd-one/syncd",
+          "rules": [
+            {
+              "id": "ENV001",
+              "name": "unused-variable",
+              "shortDescription": {
+                "text": "Variable is declared in .env but not used in code"
+              },
+              "helpUri": "https://github.com/syncd-one/syncd#unused-variable"
+            },
+            {
+              "id": "ENV002",
+              "name": "missing-variable",
+              "shortDescription": {
+                "text": "Variable is used in code but not declared in .env"
+              },
+              "helpUri": "https://github.com/syncd-one/syncd#missing-variable"
+            },
+            {
+              "id": "ENV003",
+              "name": "code-uses-not-in-docker",
+              "shortDescription": {
+                "text": "Variable is used in code but not declared in Dockerfile or .env"
+              },
+              "helpUri": "https://github.com/syncd-one/syncd#code-uses-not-in-docker"
+            },
+            {
+              "id": "ENV004",
+              "name": "docker-declares-unused",
+              "shortDescription": {
+                "text": "Variable is declared in Dockerfile but not used in code"
+              },
+              "helpUri": "https://github.com/syncd-one/syncd#docker-declares-unused"
+            },
+            {
+              "id": "ENV005",
+              "name": "docker-uses-undeclared",
+              "shortDescription": {
+                "text": "Variable is used in Dockerfile but not declared"
+              },
+              "helpUri": "https://github.com/syncd-one/syncd#docker-uses-undeclared"
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "ruleId": "ENV001",
+          "ruleIndex": 0,
+          "level": "warning",
+          "message": {
+            "text": "UNUSED_VAR: Variable is declared in .env but not used in code"
+          }
+        },
+        {
+          "ruleId": "ENV002",
+          "ruleIndex": 1,
+          "level": "error",
+          "message": {
+            "text": "MISSING_VAR: Variable is used in code but not declared in .env"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/app.go"
+                },
+                "region": {
+                  "startLine": 10
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "ENV003",
+          "ruleIndex": 2,
+          "level": "warning",
+          "message": {
+            "text": "CODE_VAR: Variable is used in code but not declared in Dockerfile or .env"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "src/config.go"
+                },
+                "region": {
+                  "startLine": 20
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "ENV004",
+          "ruleIndex": 3,
+          "level": "warning",
+          "message": {
+            "text": "DOCKER_UNUSED: Variable is declared in Dockerfile but not used in code"
+          }
+        },
+        {
+          "ruleId": "ENV005",
+          "ruleIndex": 4,
+          "level": "error",
+          "message": {
+            "text": "DOCKER_UNDECL: Variable is used in Dockerfile but not declared"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "Dockerfile"
+                },
+                "region": {
+                  "startLine": 5
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

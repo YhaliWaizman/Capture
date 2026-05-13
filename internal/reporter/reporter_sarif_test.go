@@ -320,6 +320,45 @@ func TestReportSARIF_ForwardSlashPaths(t *testing.T) {
 	}
 }
 
+func TestReportSARIF_DeclaredSourceProperties(t *testing.T) {
+	data := types.ReportData{
+		Unused: []string{"UNUSED_VAR"},
+		Missing: map[string]types.Location{
+			"MISSING_VAR": {FilePath: "src/app.go", LineNumber: 10},
+		},
+		CodeUsesNotInDocker: map[string][]types.Location{
+			"CODE_VAR": {{FilePath: "src/config.go", LineNumber: 20}},
+		},
+		DeclaredSources: map[string]string{
+			"UNUSED_VAR":  ".env",
+			"MISSING_VAR": ".env.local",
+			"CODE_VAR":    "config/.env.production",
+		},
+	}
+
+	doc, _ := runSARIF(t, data)
+	results := doc.Runs[0].Results
+
+	wantByRule := map[string]string{
+		"ENV001": ".env",
+		"ENV002": ".env.local",
+		"ENV003": "config/.env.production",
+	}
+
+	for _, r := range results {
+		want, tracked := wantByRule[r.RuleID]
+		if !tracked {
+			continue
+		}
+		if r.Properties == nil {
+			t.Fatalf("result %s expected properties, got nil", r.RuleID)
+		}
+		if got := r.Properties["declared_source"]; got != want {
+			t.Errorf("result %s declared_source = %q, want %q", r.RuleID, got, want)
+		}
+	}
+}
+
 // Task 2.5: Empty results handling
 func TestReportSARIF_EmptyResults(t *testing.T) {
 	doc, raw := runSARIF(t, types.ReportData{})

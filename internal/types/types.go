@@ -18,6 +18,7 @@ type ReportData struct {
 	Missing map[string]Location // Variables used but not declared, mapped to first location
 	// Additional data for JSON output
 	AllLocations         map[string][]Location // All locations for each variable
+	DeclaredSources      map[string]string     // Variable -> declaring env file (last file wins)
 	FilesScanned         int
 	VariablesDeclared    int
 	VariablesUsed        int
@@ -31,6 +32,7 @@ type JSONOutput struct {
 	Summary          Summary           `json:"summary"`
 	Unused           []string          `json:"unused"`
 	Missing          []MissingVariable `json:"missing"`
+	DeclaredSources  map[string]string `json:"declared_sources"`
 	DockerfileIssues DockerfileIssues  `json:"dockerfile_issues"`
 }
 

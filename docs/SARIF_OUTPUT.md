@@ -8,6 +8,12 @@ The `--format sarif` flag produces output in [SARIF](https://sarifweb.azurewebsi
 capture scan --dir . --env-file .env --format sarif
 ```
 
+You can provide multiple env files in precedence order:
+
+```bash
+capture scan --dir . --env-file .env --env-file .env.local --format sarif
+```
+
 To save results to a file:
 
 ```bash
@@ -100,6 +106,9 @@ The following example shows SARIF output from a scan that found all five categor
           "level": "warning",
           "message": {
             "text": "UNUSED_VAR: Variable is declared in .env but not used in code"
+          },
+          "properties": {
+            "declared_source": ".env"
           }
         },
         {
@@ -120,7 +129,10 @@ The following example shows SARIF output from a scan that found all five categor
                 }
               }
             }
-          ]
+          ],
+          "properties": {
+            "declared_source": ".env.local"
+          }
         },
         {
           "ruleId": "ENV003",
@@ -209,6 +221,7 @@ When no mismatches are found, the output is a valid SARIF document with empty `r
 - **tool.driver.rules**: Only rules with at least one result are included
 - **results**: Sorted by `ruleId`, then alphabetically by variable name
 - **locations**: Included for ENV002, ENV003, and ENV005 results when location data is available; omitted for ENV001 and ENV004
+- **properties.declared_source**: Included for ENV001, ENV002, and ENV003 when declaration source is known
 
 ## Location Data
 
@@ -233,6 +246,9 @@ Exit codes are the same regardless of output format:
 - **0**: No mismatches detected
 - **1**: Mismatches found
 - **2**: Configuration error
+
+When multiple `--env-file` flags are used, unreadable files generate warnings and are skipped.
+If all env files are unreadable, scan exits with code `2`.
 
 ## GitHub Actions Integration
 

@@ -8,6 +8,12 @@ The `--format json` flag produces machine-readable JSON output for CI/CD integra
 capture scan --dir . --env-file .env --format json
 ```
 
+You can provide multiple env files in precedence order:
+
+```bash
+capture scan --dir . --env-file .env --env-file .env.local --format json
+```
+
 ## Output Structure
 
 The JSON output follows this schema:
@@ -21,6 +27,10 @@ The JSON output follows this schema:
     "mismatches_found": 3
   },
   "unused": ["OLD_API_KEY", "DEPRECATED_URL"],
+  "declared_sources": {
+    "DATABASE_URL": ".env.local",
+    "API_KEY": ".env"
+  },
   "missing": [
     {
       "variable": "DATABASE_URL",
@@ -68,6 +78,15 @@ List of variable names declared in .env but not used in source code.
 ```json
 "unused": ["OLD_API_KEY", "DEPRECATED_URL"]
 ```
+
+### declared_sources Object
+
+Mapping of variable name to the env file that declared it after merge precedence is applied.
+
+- Key: variable name
+- Value: source env file path
+
+When multiple `--env-file` flags are provided, later files override earlier files.
 
 ### Missing Array
 
@@ -137,6 +156,9 @@ Exit codes remain the same regardless of output format:
 - **0**: No mismatches detected
 - **1**: Mismatches found
 - **2**: Configuration error
+
+When multiple `--env-file` flags are used, unreadable files generate warnings and are skipped.
+If all env files are unreadable, scan exits with code `2`.
 
 ## Examples
 

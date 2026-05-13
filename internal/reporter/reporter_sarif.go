@@ -74,7 +74,7 @@ func (r *ReporterImpl) ReportSARIF(data types.ReportData) error {
 
 // buildSARIFRules returns the filtered, sorted rules array for the given active rule IDs.
 func buildSARIFRules(activeRuleIDs map[string]bool) []types.SARIFReportingDescriptor {
-	rules := []types.SARIFReportingDescriptor{}
+	var rules []types.SARIFReportingDescriptor
 	for _, def := range sarifRules {
 		if !activeRuleIDs[def.id] {
 			continue
@@ -111,11 +111,13 @@ func buildSARIFResults(data types.ReportData) ([]types.SARIFResult, map[string]b
 	sort.Strings(sortedUnused)
 	for _, varName := range sortedUnused {
 		activeRuleIDs["ENV001"] = true
-		results = append(results, types.SARIFResult{
+		result := types.SARIFResult{
 			RuleID:  "ENV001",
 			Level:   "warning",
 			Message: types.SARIFMessage{Text: fmt.Sprintf("%s: Variable is declared in .env but not used in code", varName)},
-		})
+		}
+		addDeclaredSourceProperty(&result, varName, data.DeclaredSources)
+		results = append(results, result)
 	}
 
 	// ENV002 - missing variables (with locations from data.Missing)
@@ -133,6 +135,7 @@ func buildSARIFResults(data types.ReportData) ([]types.SARIFResult, map[string]b
 				makeLocation(loc.FilePath, loc.LineNumber),
 			}
 		}
+		addDeclaredSourceProperty(&result, varName, data.DeclaredSources)
 		results = append(results, result)
 	}
 
@@ -151,6 +154,7 @@ func buildSARIFResults(data types.ReportData) ([]types.SARIFResult, map[string]b
 				makeLocation(locs[0].FilePath, locs[0].LineNumber),
 			}
 		}
+		addDeclaredSourceProperty(&result, varName, data.DeclaredSources)
 		results = append(results, result)
 	}
 
@@ -217,6 +221,20 @@ func makeLocation(filePath string, lineNumber int) types.SARIFLocation {
 			},
 		},
 	}
+}
+
+func addDeclaredSourceProperty(result *types.SARIFResult, varName string, declaredSources map[string]string) {
+	if declaredSources == nil {
+		return
+	}
+	source, ok := declaredSources[varName]
+	if !ok || source == "" {
+		return
+	}
+	if result.Properties == nil {
+		result.Properties = make(map[string]string)
+	}
+	result.Properties["declared_source"] = filepath.ToSlash(source)
 }
 
 // sortedKeys returns sorted keys from a map[string]Location.

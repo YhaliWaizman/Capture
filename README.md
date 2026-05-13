@@ -71,6 +71,15 @@ make install
 capture scan --dir ./project --env-file .env
 ```
 
+### Multiple Env Files (Last File Wins)
+
+```bash
+capture scan --dir ./project \
+  --env-file .env \
+  --env-file .env.local \
+  --env-file .env.production
+```
+
 ### With Ignore Patterns
 
 ```bash
@@ -108,7 +117,7 @@ Dockerfile uses undeclared variables:
 ## Command-Line Options
 
 - `--dir` (required): Directory to scan for source files
-- `--env-file` (required): Path to the .env file
+- `--env-file` (required, repeatable): Path to an env file. When repeated, later files override earlier ones for declaration source.
 - `--ignore` (optional): Comma-separated list of directories to ignore
 - `--format` (optional): Output format - `text` (default), `json`, or `sarif`
 
@@ -117,6 +126,9 @@ Dockerfile uses undeclared variables:
 - **0**: No mismatches detected (success)
 - **1**: Mismatches found (unused or missing variables)
 - **2**: Configuration error (missing file, invalid flags, permissions)
+
+If one of multiple `--env-file` values is unreadable, `capture` prints a warning and continues with readable files.
+If none of the provided/default env files are readable, `capture` exits with code `2`.
 
 ## Supported Languages
 

@@ -19,10 +19,10 @@ import (
 
 // ScanConfig holds the configuration for the scan command
 type ScanConfig struct {
-	Dir     string
-	EnvFile string
-	Ignore  []string
-	Format  string
+	Dir      string
+	EnvFiles []string
+	Ignore   []string
+	Format   string
 }
 
 var scanConfig ScanConfig
@@ -39,7 +39,7 @@ The tool will:
   - Detect variable usage in source code (JS, TS, Go, Python)
   - Report mismatches and inconsistencies`,
 	Example: `  capture scan --dir ./project --env-file .env
-  capture scan --dir . --env-file .env --ignore vendor,tmp
+  capture scan --dir . --env-file .env --env-file .env.local --ignore vendor,tmp
   capture scan --dir . --env-file .env --format json`,
 	SilenceUsage:  true,
 	SilenceErrors: true,
@@ -49,7 +49,7 @@ The tool will:
 func init() {
 	// Define flags
 	scanCmd.Flags().StringVar(&scanConfig.Dir, "dir", ".", "Directory to scan (required)")
-	scanCmd.Flags().StringVar(&scanConfig.EnvFile, "env-file", ".env", "Path to .env file (required)")
+	scanCmd.Flags().StringSliceVar(&scanConfig.EnvFiles, "env-file", []string{".env"}, "Path to .env file (repeatable). Later files override earlier ones")
 	scanCmd.Flags().StringSliceVar(&scanConfig.Ignore, "ignore", []string{}, "Comma-separated list of directories to ignore")
 	scanCmd.Flags().StringVar(&scanConfig.Format, "format", "text", "Output format: text, json, or sarif")
 }
@@ -59,12 +59,6 @@ func runScan(cmd *cobra.Command, args []string) error {
 	if scanConfig.Format != "text" && scanConfig.Format != "json" && scanConfig.Format != "sarif" {
 		fmt.Fprintf(os.Stderr, "Error: invalid format '%s'. Must be 'text', 'json', or 'sarif'\n", scanConfig.Format)
 		return NewExitError(fmt.Errorf("invalid format"), 2)
-	}
-
-	// Validate .env file exists
-	if _, err := os.Stat(scanConfig.EnvFile); os.IsNotExist(err) {
-		fmt.Fprintf(os.Stderr, "Error: .env file does not exist: %s\n", scanConfig.EnvFile)
-		return NewExitError(err, 2)
 	}
 
 	// Validate directory exists
@@ -105,10 +99,27 @@ func executeScan(config *ScanConfig) int {
 	diffEngine := diff.NewDiffEngine()
 	rep := reporter.NewReporter(os.Stdout, os.Stderr)
 
-	// Step 1: Parse .env file
-	declared, err := envParser.Parse(config.EnvFile)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: failed to parse .env file: %v\n", err)
+	// Step 1: Parse .env files in order. Later files override earlier ones.
+	declared := make(map[string]bool)
+	declaredSources := make(map[string]string)
+	parsedEnvFiles := 0
+
+	for _, envFile := range config.EnvFiles {
+		parsedDeclared, err := envParser.Parse(envFile)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to parse .env file %s: %v\n", envFile, err)
+			continue
+		}
+
+		parsedEnvFiles++
+		for varName := range parsedDeclared {
+			declared[varName] = true
+			declaredSources[varName] = envFile
+		}
+	}
+
+	if parsedEnvFiles == 0 {
+		fmt.Fprintln(os.Stderr, "Error: no readable env files found from --env-file values")
 		return 2
 	}
 
@@ -233,6 +244,7 @@ func executeScan(config *ScanConfig) int {
 		Unused:               diffResult.Unused,
 		Missing:              make(map[string]types.Location),
 		AllLocations:         allLocations,
+		DeclaredSources:      declaredSources,
 		FilesScanned:         len(sourceFiles) + len(dockerfiles),
 		VariablesDeclared:    len(declared),
 		VariablesUsed:        len(used),

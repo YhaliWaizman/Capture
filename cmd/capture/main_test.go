@@ -137,8 +137,74 @@ func TestCLI_MissingEnvFile(t *testing.T) {
 
 	// Should output error message to stderr
 	stderrOutput := stderr.String()
-	if !strings.Contains(stderrOutput, "does not exist") {
-		t.Errorf("Expected error message about missing file in stderr, got: %s", stderrOutput)
+	if !strings.Contains(stderrOutput, "no readable env files found") {
+		t.Errorf("Expected error message about unreadable env files in stderr, got: %s", stderrOutput)
+	}
+}
+
+// TestCLI_MultipleEnvFiles tests repeated --env-file handling.
+func TestCLI_MultipleEnvFiles(t *testing.T) {
+	binary := buildBinary(t)
+
+	tmpDir := t.TempDir()
+	baseEnv := filepath.Join(tmpDir, ".env")
+	localEnv := filepath.Join(tmpDir, ".env.local")
+	srcFile := filepath.Join(tmpDir, "app.js")
+
+	if err := os.WriteFile(baseEnv, []byte("API_KEY=base\n"), 0644); err != nil {
+		t.Fatalf("Failed to write base .env file: %v", err)
+	}
+	if err := os.WriteFile(localEnv, []byte("LOCAL_ONLY=1\n"), 0644); err != nil {
+		t.Fatalf("Failed to write local .env file: %v", err)
+	}
+	if err := os.WriteFile(srcFile, []byte("console.log(process.env.API_KEY, process.env.LOCAL_ONLY);\n"), 0644); err != nil {
+		t.Fatalf("Failed to write source file: %v", err)
+	}
+
+	cmd := exec.Command(binary, "scan", "--dir", tmpDir, "--env-file", baseEnv, "--env-file", localEnv)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	err := cmd.Run()
+	if err != nil {
+		t.Errorf("Expected exit code 0, got error: %v\nStdout: %s\nStderr: %s", err, stdout.String(), stderr.String())
+	}
+
+	if !strings.Contains(stdout.String(), "No environment mismatches found.") {
+		t.Errorf("Expected success output, got: %s", stdout.String())
+	}
+}
+
+// TestCLI_MissingEnvFile_WarnAndContinue ensures a missing env file does not fail the scan
+// if at least one env file is readable.
+func TestCLI_MissingEnvFile_WarnAndContinue(t *testing.T) {
+	binary := buildBinary(t)
+
+	tmpDir := t.TempDir()
+	existingEnv := filepath.Join(tmpDir, ".env")
+	missingEnv := filepath.Join(tmpDir, ".env.local")
+	srcFile := filepath.Join(tmpDir, "app.js")
+
+	if err := os.WriteFile(existingEnv, []byte("API_KEY=test\n"), 0644); err != nil {
+		t.Fatalf("Failed to write .env file: %v", err)
+	}
+	if err := os.WriteFile(srcFile, []byte("const key = process.env.API_KEY;\n"), 0644); err != nil {
+		t.Fatalf("Failed to write source file: %v", err)
+	}
+
+	cmd := exec.Command(binary, "scan", "--dir", tmpDir, "--env-file", existingEnv, "--env-file", missingEnv)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	err := cmd.Run()
+	if err != nil {
+		t.Errorf("Expected exit code 0, got error: %v\nStdout: %s\nStderr: %s", err, stdout.String(), stderr.String())
+	}
+
+	if !strings.Contains(stderr.String(), "Warning: failed to parse .env file") {
+		t.Errorf("Expected warning for missing env file, got stderr: %s", stderr.String())
 	}
 }
 
@@ -193,7 +259,7 @@ func TestCLI_DefaultFlagBehavior(t *testing.T) {
 		{
 			name:          "missing dir flag uses default and fails if not exists",
 			args:          []string{"scan", "--env-file", ".env"},
-			expectedInErr: "does not exist",
+			expectedInErr: "no readable env files found",
 			setupFunc: func(t *testing.T) string {
 				// Create temp dir without .env file
 				tmpDir := t.TempDir()
@@ -203,7 +269,7 @@ func TestCLI_DefaultFlagBehavior(t *testing.T) {
 		{
 			name:          "missing env-file flag uses default and fails if not exists",
 			args:          []string{"scan", "--dir", "."},
-			expectedInErr: "does not exist",
+			expectedInErr: "no readable env files found",
 			setupFunc: func(t *testing.T) string {
 				// Create temp dir without .env file
 				tmpDir := t.TempDir()
@@ -213,7 +279,7 @@ func TestCLI_DefaultFlagBehavior(t *testing.T) {
 		{
 			name:          "missing both flags uses defaults and fails",
 			args:          []string{"scan"},
-			expectedInErr: "does not exist",
+			expectedInErr: "no readable env files found",
 			setupFunc: func(t *testing.T) string {
 				// Create temp dir without .env file
 				tmpDir := t.TempDir()

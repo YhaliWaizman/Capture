@@ -35,11 +35,12 @@ type SARIFReportingDescriptor struct {
 
 // SARIFResult represents a single finding.
 type SARIFResult struct {
-	RuleID    string          `json:"ruleId"`
-	RuleIndex int             `json:"ruleIndex"`
-	Level     string          `json:"level"`
-	Message   SARIFMessage    `json:"message"`
-	Locations []SARIFLocation `json:"locations,omitempty"`
+	RuleID     string            `json:"ruleId"`
+	RuleIndex  int               `json:"ruleIndex"`
+	Level      string            `json:"level"`
+	Message    SARIFMessage      `json:"message"`
+	Locations  []SARIFLocation   `json:"locations,omitempty"`
+	Properties map[string]string `json:"properties,omitempty"`
 }
 
 // SARIFMessage holds a human-readable text message.

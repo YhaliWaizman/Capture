@@ -81,6 +81,11 @@ func (r *ReporterImpl) ReportJSON(data types.ReportData) error {
 		unused = []string{}
 	}
 
+	declaredSources := data.DeclaredSources
+	if declaredSources == nil {
+		declaredSources = map[string]string{}
+	}
+
 	dockerDeclaresUnused := data.DockerDeclaresUnused
 	if dockerDeclaresUnused == nil {
 		dockerDeclaresUnused = []string{}
@@ -160,8 +165,9 @@ func (r *ReporterImpl) ReportJSON(data types.ReportData) error {
 			VariablesUsed:     data.VariablesUsed,
 			MismatchesFound:   mismatchesFound,
 		},
-		Unused:  unused,
-		Missing: missing,
+		Unused:          unused,
+		Missing:         missing,
+		DeclaredSources: declaredSources,
 		DockerfileIssues: types.DockerfileIssues{
 			CodeUsesNotInDocker:  codeUsesNotInDocker,
 			DockerDeclaresUnused: dockerDeclaresUnused,

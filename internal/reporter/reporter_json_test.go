@@ -357,3 +357,42 @@ func TestReporterImpl_ReportJSON_NilLocations(t *testing.T) {
 
 	t.Logf("JSON output:\n%s", jsonStr)
 }
+
+func TestReporterImpl_ReportJSON_DeclaredSources(t *testing.T) {
+	data := types.ReportData{
+		Unused:               []string{},
+		Missing:              map[string]types.Location{},
+		AllLocations:         map[string][]types.Location{},
+		DeclaredSources:      map[string]string{"API_KEY": ".env.local", "DATABASE_URL": ".env"},
+		FilesScanned:         2,
+		VariablesDeclared:    2,
+		VariablesUsed:        0,
+		CodeUsesNotInDocker:  map[string][]types.Location{},
+		DockerDeclaresUnused: []string{},
+		DockerUsesUndeclared: map[string]types.Location{},
+	}
+
+	var out bytes.Buffer
+	var errOut bytes.Buffer
+	r := NewReporter(&out, &errOut)
+
+	err := r.ReportJSON(data)
+	if err != nil {
+		t.Fatalf("ReportJSON() error = %v", err)
+	}
+
+	var result types.JSONOutput
+	if err := json.Unmarshal(out.Bytes(), &result); err != nil {
+		t.Fatalf("Failed to unmarshal JSON: %v", err)
+	}
+
+	if len(result.DeclaredSources) != 2 {
+		t.Fatalf("DeclaredSources count = %d, want 2", len(result.DeclaredSources))
+	}
+	if result.DeclaredSources["API_KEY"] != ".env.local" {
+		t.Errorf("DeclaredSources[API_KEY] = %q, want .env.local", result.DeclaredSources["API_KEY"])
+	}
+	if result.DeclaredSources["DATABASE_URL"] != ".env" {
+		t.Errorf("DeclaredSources[DATABASE_URL] = %q, want .env", result.DeclaredSources["DATABASE_URL"])
+	}
+}

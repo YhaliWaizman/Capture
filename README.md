@@ -5,6 +5,7 @@ A static analysis CLI tool that identifies mismatches between environment variab
 ## Features
 
 - 🔍 Detects environment variable usage in JavaScript, TypeScript, Go, Python, Ruby, PHP, Java, and Kotlin
+- 🔐 Detects possible hardcoded secrets (API keys, tokens, private keys, and hardcoded credentials)
 - 🐳 Analyzes Dockerfiles for ENV/ARG declarations and variable usage
 - 🧩 Parses Docker Compose files (`docker-compose*.yml`, `compose.yml`) for environment declarations, substitutions, and `env_file` references
 - 🔄 Cross-checks variables between .env, Dockerfile, and source code
@@ -161,6 +162,10 @@ Dockerfile declares but code doesn't use:
 
 Dockerfile uses undeclared variables:
 - UNDEFINED_VAR (Dockerfile:15)
+
+Possible hardcoded secrets:
+- Stripe Key (src/config.js:10)
+  Suggestion: Move the value to an environment variable and load it at runtime.
 ```
 
 ## Command-Line Options

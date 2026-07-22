@@ -454,6 +454,7 @@ func executeScan(config *ScanConfig) int {
 	detectorFactory := detector.NewDetectorFactory()
 	diffEngine := diff.NewDiffEngine()
 	rep := reporter.NewReporter(os.Stdout, os.Stderr)
+	secretDetector := detector.NewHardcodedSecretDetector()
 
 	// Step 1: Parse .env files in order. Later files override earlier ones.
 	declared := make(map[string]bool)
@@ -616,7 +617,9 @@ func executeScan(config *ScanConfig) int {
 	type detectResult struct {
 		filePath  string
 		locations map[string][]types.Location
+		secrets   []types.HardcodedSecret
 		err       error
+		secretErr error
 	}
 	jobs := make(chan string)
 	results := make(chan detectResult, len(sourceFilesToScan))
@@ -632,16 +635,19 @@ func executeScan(config *ScanConfig) int {
 		go func() {
 			defer wg.Done()
 			for filePath := range jobs {
+				secrets, secretErr := secretDetector.Detect(filePath)
 				ext := filepath.Ext(filePath)
 				d := detectorFactory.Create(ext)
 				if d == nil {
+					results <- detectResult{filePath: filePath, secrets: secrets, secretErr: secretErr}
 					continue
 				}
 				locations, err := d.Detect(filePath)
-				results <- detectResult{filePath: filePath, locations: locations, err: err}
+				results <- detectResult{filePath: filePath, locations: locations, secrets: secrets, err: err, secretErr: secretErr}
 			}
 		}()
 	}
+	var hardcodedSecrets []types.HardcodedSecret
 	go func() {
 		for _, filePath := range sourceFilesToScan {
 			jobs <- filePath
@@ -651,6 +657,11 @@ func executeScan(config *ScanConfig) int {
 		close(results)
 	}()
 	for result := range results {
+		if result.secretErr != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to scan secrets in file %s: %v\n", result.filePath, result.secretErr)
+		}
+		hardcodedSecrets = append(hardcodedSecrets, result.secrets...)
+
 		if result.err != nil {
 			// Soft error: log warning but continue processing
 			fmt.Fprintf(os.Stderr, "Warning: failed to process file %s: %v\n", result.filePath, result.err)
@@ -666,6 +677,7 @@ func executeScan(config *ScanConfig) int {
 			allLocations[varName] = append(allLocations[varName], locs...)
 		}
 	}
+	sortHardcodedSecrets(hardcodedSecrets)
 	sortLocationMap(allLocations)
 	if config.Incremental && !config.NoCache {
 		if err := saveScanCache(config.Dir, scanCache{
@@ -813,6 +825,7 @@ func executeScan(config *ScanConfig) int {
 		FilesScanned:             len(sourceFiles) + len(dockerfiles) + len(composeFiles),
 		VariablesDeclared:        len(declared),
 		VariablesUsed:            len(used),
+		HardcodedSecrets:         hardcodedSecrets,
 		CodeUsesNotInDocker:      make(map[string][]types.Location),
 		DockerDeclaresUnused:     dockerDeclaredNotUsed,
 		DockerUsesUndeclared:     dockerUsedUndeclared,
@@ -917,7 +930,7 @@ func executeScan(config *ScanConfig) int {
 	}
 
 	// Determine exit code
-	if len(diffResult.Unused) > 0 || len(diffResult.Missing) > 0 || dockerMismatches || composeMismatches {
+	if len(diffResult.Unused) > 0 || len(diffResult.Missing) > 0 || len(hardcodedSecrets) > 0 || dockerMismatches || composeMismatches {
 		return 1 // Mismatches found
 	}
 	return 0 // No mismatches
@@ -941,6 +954,18 @@ func sortLocationMap(locations map[string][]types.Location) {
 			return locations[varName][i].FilePath < locations[varName][j].FilePath
 		})
 	}
+}
+
+func sortHardcodedSecrets(findings []types.HardcodedSecret) {
+	sort.Slice(findings, func(i, j int) bool {
+		if findings[i].Location.FilePath != findings[j].Location.FilePath {
+			return findings[i].Location.FilePath < findings[j].Location.FilePath
+		}
+		if findings[i].Location.LineNumber != findings[j].Location.LineNumber {
+			return findings[i].Location.LineNumber < findings[j].Location.LineNumber
+		}
+		return findings[i].Type < findings[j].Type
+	})
 }
 
 type cachedFileResult struct {

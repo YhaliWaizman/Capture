@@ -22,6 +22,7 @@ type ReportData struct {
 	FilesScanned             int
 	VariablesDeclared        int
 	VariablesUsed            int
+	HardcodedSecrets         []HardcodedSecret
 	CodeUsesNotInDocker      map[string][]Location
 	DockerDeclaresUnused     []string
 	DockerUsesUndeclared     map[string]Location
@@ -37,6 +38,7 @@ type JSONOutput struct {
 	Unused           []string          `json:"unused"`
 	Missing          []MissingVariable `json:"missing"`
 	DeclaredSources  map[string]string `json:"declared_sources"`
+	HardcodedSecrets []HardcodedSecret `json:"hardcoded_secrets"`
 	DockerfileIssues DockerfileIssues  `json:"dockerfile_issues"`
 	ComposeIssues    ComposeIssues     `json:"compose_issues"`
 }
@@ -53,6 +55,13 @@ type Summary struct {
 type MissingVariable struct {
 	Variable  string     `json:"variable"`
 	Locations []Location `json:"locations"`
+}
+
+// HardcodedSecret represents a possible hardcoded secret in source code.
+type HardcodedSecret struct {
+	Type       string   `json:"type"`
+	Location   Location `json:"location"`
+	Suggestion string   `json:"suggestion"`
 }
 
 // DockerfileIssues contains Dockerfile-specific mismatches

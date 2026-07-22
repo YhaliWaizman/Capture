@@ -40,6 +40,13 @@ The JSON output follows this schema:
       ]
     }
   ],
+  "hardcoded_secrets": [
+    {
+      "type": "Stripe Key",
+      "location": {"FilePath": "src/config.js", "LineNumber": 10},
+      "suggestion": "Move the value to an environment variable and load it at runtime."
+    }
+  ],
   "dockerfile_issues": {
     "code_uses_not_in_docker": [
       {
@@ -69,7 +76,7 @@ Contains scan statistics:
 - `files_scanned` (int): Total number of files analyzed (source files + Dockerfiles)
 - `variables_declared` (int): Number of variables declared in .env file
 - `variables_used` (int): Number of unique variables referenced in source code
-- `mismatches_found` (int): Total count of all mismatches (unused + missing + dockerfile issues)
+- `mismatches_found` (int): Total count of all mismatches (unused + missing + hardcoded secrets + docker/compose issues)
 
 ### Unused Array
 
@@ -148,6 +155,14 @@ Variables referenced in Dockerfile but not declared via ENV or ARG:
   }
 ]
 ```
+
+### hardcoded_secrets Array
+
+Possible hardcoded credentials and tokens found in source files.
+
+- `type` (string): Detected secret type
+- `location` (object): File path and line number
+- `suggestion` (string): Suggested environment-variable migration hint
 
 ## Exit Codes
 

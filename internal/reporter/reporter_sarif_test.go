@@ -441,3 +441,42 @@ func TestReportSARIF_IndentationAndTrailingNewline(t *testing.T) {
 		t.Error("output does not use 2-space indentation")
 	}
 }
+
+func TestReportSARIF_HardcodedSecretRule(t *testing.T) {
+	data := types.ReportData{
+		HardcodedSecrets: []types.HardcodedSecret{
+			{
+				Type: "Stripe Key",
+				Location: types.Location{
+					FilePath:   "src/config.js",
+					LineNumber: 12,
+				},
+				Suggestion: "Use process.env.STRIPE_KEY instead.",
+			},
+		},
+	}
+
+	doc, _ := runSARIF(t, data)
+	if len(doc.Runs[0].Tool.Driver.Rules) != 1 {
+		t.Fatalf("rules count = %d, want 1", len(doc.Runs[0].Tool.Driver.Rules))
+	}
+	if doc.Runs[0].Tool.Driver.Rules[0].ID != "ENV010" {
+		t.Fatalf("rule ID = %s, want ENV010", doc.Runs[0].Tool.Driver.Rules[0].ID)
+	}
+	if len(doc.Runs[0].Results) != 1 {
+		t.Fatalf("results count = %d, want 1", len(doc.Runs[0].Results))
+	}
+	result := doc.Runs[0].Results[0]
+	if result.RuleID != "ENV010" {
+		t.Fatalf("result rule ID = %s, want ENV010", result.RuleID)
+	}
+	if len(result.Locations) != 1 {
+		t.Fatalf("locations count = %d, want 1", len(result.Locations))
+	}
+	if result.Locations[0].PhysicalLocation.ArtifactLocation.URI != "src/config.js" {
+		t.Fatalf("location uri = %q, want src/config.js", result.Locations[0].PhysicalLocation.ArtifactLocation.URI)
+	}
+	if result.Properties["suggestion"] == "" {
+		t.Fatal("expected suggestion property to be set")
+	}
+}

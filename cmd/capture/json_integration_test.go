@@ -152,6 +152,64 @@ const dbUrl = process.env.DATABASE_URL;
 	if len(output.Unused) != 0 {
 		t.Errorf("Unused count = %d, want 0", len(output.Unused))
 	}
+	if len(output.HardcodedSecrets) != 0 {
+		t.Errorf("HardcodedSecrets count = %d, want 0", len(output.HardcodedSecrets))
+	}
+}
+
+func TestCLI_JSONFormat_HardcodedSecrets(t *testing.T) {
+	// Build the binary
+	buildCmd := exec.Command("go", "build", "-o", "capture-test", ".")
+	if err := buildCmd.Run(); err != nil {
+		t.Fatalf("Failed to build binary: %v", err)
+	}
+	defer os.Remove("capture-test")
+
+	tmpDir := t.TempDir()
+
+	envPath := filepath.Join(tmpDir, ".env")
+	if err := os.WriteFile(envPath, []byte("API_KEY=ok\n"), 0o644); err != nil {
+		t.Fatalf("Failed to create .env file: %v", err)
+	}
+
+	jsPath := filepath.Join(tmpDir, "app.js")
+	jsContent := "const apiKey = process.env.API_KEY;\n" +
+		"const leaked = \"sk" + "_live_AbCdEf1234567890AbCdEf12\";\n"
+	if err := os.WriteFile(jsPath, []byte(jsContent), 0o644); err != nil {
+		t.Fatalf("Failed to create app.js file: %v", err)
+	}
+
+	cmd := exec.Command("./capture-test", "scan",
+		"--dir", tmpDir,
+		"--env-file", envPath,
+		"--format", "json")
+
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	err := cmd.Run()
+	if err == nil {
+		t.Fatal("Expected non-zero exit code when hardcoded secret is present")
+	}
+
+	var output types.JSONOutput
+	if err := json.Unmarshal(stdout.Bytes(), &output); err != nil {
+		t.Fatalf("Failed to parse JSON output: %v\nOutput: %s", err, stdout.String())
+	}
+
+	if len(output.HardcodedSecrets) == 0 {
+		t.Fatalf("Expected hardcoded secret findings, got none")
+	}
+	if output.HardcodedSecrets[0].Type == "" {
+		t.Error("Expected hardcoded secret type to be populated")
+	}
+	if output.HardcodedSecrets[0].Location.FilePath == "" {
+		t.Error("Expected hardcoded secret location path to be populated")
+	}
+	if output.Summary.MismatchesFound == 0 {
+		t.Error("Expected mismatches_found > 0 when hardcoded secret exists")
+	}
 }
 
 func TestCLI_InvalidFormat(t *testing.T) {

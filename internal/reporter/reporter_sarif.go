@@ -34,6 +34,7 @@ var sarifRules = []sarifRuleDef{
 	{id: "ENV007", name: "compose-uses-undefined", description: "Variable is used in compose file but not declared in compose, Dockerfile, or .env", level: "error"},
 	{id: "ENV008", name: "env-declares-unused-in-compose", description: "Variable is declared in .env but not used by compose files", level: "warning"},
 	{id: "ENV009", name: "compose-missing-env-file", description: "compose file references an env_file that does not exist", level: "error"},
+	{id: "ENV010", name: "hardcoded-secret", description: "Possible hardcoded secret detected in source code", level: "error"},
 }
 
 // ReportSARIF formats and outputs the analysis results as SARIF 2.1.0 JSON.
@@ -262,6 +263,28 @@ func buildSARIFResults(data types.ReportData) ([]types.SARIFResult, map[string]b
 		results = append(results, result)
 	}
 
+	// ENV010 - hardcoded secrets (with location)
+	secrets := sortedHardcodedSecrets(data.HardcodedSecrets)
+	for _, finding := range secrets {
+		activeRuleIDs["ENV010"] = true
+		result := types.SARIFResult{
+			RuleID:  "ENV010",
+			Level:   "error",
+			Message: types.SARIFMessage{Text: fmt.Sprintf("%s: Possible hardcoded secret detected", finding.Type)},
+		}
+		if finding.Location.FilePath != "" {
+			result.Locations = []types.SARIFLocation{
+				makeLocation(finding.Location.FilePath, finding.Location.LineNumber),
+			}
+		}
+		if finding.Suggestion != "" {
+			result.Properties = map[string]string{
+				"suggestion": finding.Suggestion,
+			}
+		}
+		results = append(results, result)
+	}
+
 	// Sort results by ruleId, then by variable name (extracted from message prefix)
 	sort.SliceStable(results, func(i, j int) bool {
 		if results[i].RuleID != results[j].RuleID {
@@ -329,4 +352,22 @@ func sortedKeysLocSlice(m map[string][]types.Location) []string {
 // sortedKeysLoc returns sorted keys from a map[string]Location (same as sortedKeys, aliased for clarity).
 func sortedKeysLoc(m map[string]types.Location) []string {
 	return sortedKeys(m)
+}
+
+func sortedHardcodedSecrets(findings []types.HardcodedSecret) []types.HardcodedSecret {
+	if len(findings) == 0 {
+		return []types.HardcodedSecret{}
+	}
+	out := make([]types.HardcodedSecret, len(findings))
+	copy(out, findings)
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Location.FilePath != out[j].Location.FilePath {
+			return out[i].Location.FilePath < out[j].Location.FilePath
+		}
+		if out[i].Location.LineNumber != out[j].Location.LineNumber {
+			return out[i].Location.LineNumber < out[j].Location.LineNumber
+		}
+		return out[i].Type < out[j].Type
+	})
+	return out
 }

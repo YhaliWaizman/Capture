@@ -36,7 +36,7 @@ func NewReporter(out, err io.Writer) *ReporterImpl {
 // Implements requirements 10.1-10.9
 func (r *ReporterImpl) Report(data types.ReportData) {
 	// Requirement 10.6: Output "No environment mismatches found." when no mismatches
-	if len(data.Unused) == 0 && len(data.Missing) == 0 {
+	if len(data.Unused) == 0 && len(data.Missing) == 0 && len(data.HardcodedSecrets) == 0 {
 		fmt.Fprintln(r.out, "No environment mismatches found.")
 		return
 	}
@@ -71,6 +71,29 @@ func (r *ReporterImpl) Report(data types.ReportData) {
 			fmt.Fprintf(r.out, "- %s (%s:%d)\n", varName, location.FilePath, location.LineNumber)
 		}
 	}
+
+	if len(data.HardcodedSecrets) > 0 {
+		if len(data.Unused) > 0 || len(data.Missing) > 0 {
+			fmt.Fprintln(r.out, "")
+		}
+		fmt.Fprintln(r.out, "Possible hardcoded secrets:")
+		secrets := append([]types.HardcodedSecret(nil), data.HardcodedSecrets...)
+		sort.Slice(secrets, func(i, j int) bool {
+			if secrets[i].Location.FilePath != secrets[j].Location.FilePath {
+				return secrets[i].Location.FilePath < secrets[j].Location.FilePath
+			}
+			if secrets[i].Location.LineNumber != secrets[j].Location.LineNumber {
+				return secrets[i].Location.LineNumber < secrets[j].Location.LineNumber
+			}
+			return secrets[i].Type < secrets[j].Type
+		})
+		for _, finding := range secrets {
+			fmt.Fprintf(r.out, "- %s (%s:%d)\n", finding.Type, finding.Location.FilePath, finding.Location.LineNumber)
+			if finding.Suggestion != "" {
+				fmt.Fprintf(r.out, "  Suggestion: %s\n", finding.Suggestion)
+			}
+		}
+	}
 }
 
 // ReportJSON formats and outputs the analysis results as JSON
@@ -94,6 +117,11 @@ func (r *ReporterImpl) ReportJSON(data types.ReportData) error {
 	envDeclaresUnusedCompose := data.EnvDeclaresUnusedCompose
 	if envDeclaresUnusedCompose == nil {
 		envDeclaresUnusedCompose = []string{}
+	}
+
+	hardcodedSecrets := data.HardcodedSecrets
+	if hardcodedSecrets == nil {
+		hardcodedSecrets = []types.HardcodedSecret{}
 	}
 
 	// Build missing variables with all locations
@@ -198,6 +226,7 @@ func (r *ReporterImpl) ReportJSON(data types.ReportData) error {
 
 	// Calculate total mismatches
 	mismatchesFound := len(unused) + len(missing) +
+		len(hardcodedSecrets) +
 		len(codeUsesNotInDocker) + len(dockerDeclaresUnused) +
 		len(dockerUsesUndeclared) +
 		len(composeDeclaresNotInEnv) + len(composeUsesUndefined) +
@@ -211,9 +240,10 @@ func (r *ReporterImpl) ReportJSON(data types.ReportData) error {
 			VariablesUsed:     data.VariablesUsed,
 			MismatchesFound:   mismatchesFound,
 		},
-		Unused:          unused,
-		Missing:         missing,
-		DeclaredSources: declaredSources,
+		Unused:           unused,
+		Missing:          missing,
+		DeclaredSources:  declaredSources,
+		HardcodedSecrets: hardcodedSecrets,
 		DockerfileIssues: types.DockerfileIssues{
 			CodeUsesNotInDocker:  codeUsesNotInDocker,
 			DockerDeclaresUnused: dockerDeclaresUnused,

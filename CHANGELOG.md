@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Features
 
 * **developer-experience:** add `template` command to generate grouped, sorted `.env.example` files from detected environment variable usage with configurable `--root`, `--output`, and `--ignore`
+* **security:** detect possible hardcoded secrets (API keys, tokens, private keys, and hardcoded credentials) with file/line reporting and environment-variable migration suggestions
 
 ## [1.6.0](https://github.com/YhaliWaizman/Capture/compare/v1.5.0...v1.6.0) (2026-07-22)
 

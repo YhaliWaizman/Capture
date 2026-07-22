@@ -31,6 +31,11 @@ Each category of environment variable mismatch maps to a distinct SARIF rule. Ru
 | ENV003 | `code-uses-not-in-docker` | Variable is used in code but not declared in Dockerfile or .env | `warning` |
 | ENV004 | `docker-declares-unused` | Variable is declared in Dockerfile but not used in code | `warning` |
 | ENV005 | `docker-uses-undeclared` | Variable is used in Dockerfile but not declared | `error` |
+| ENV006 | `compose-declares-not-in-env` | Variable is declared in compose file but not declared in .env | `warning` |
+| ENV007 | `compose-uses-undefined` | Variable is used in compose file but not declared in compose, Dockerfile, or .env | `error` |
+| ENV008 | `env-declares-unused-in-compose` | Variable is declared in .env but not used by compose files | `warning` |
+| ENV009 | `compose-missing-env-file` | compose file references an env_file that does not exist | `error` |
+| ENV010 | `hardcoded-secret` | Possible hardcoded secret detected in source code | `error` |
 
 ### Severity Levels
 
@@ -43,7 +48,7 @@ The SARIF output conforms to the [SARIF 2.1.0 schema](https://raw.githubusercont
 
 ### Complete Example
 
-The following example shows SARIF output from a scan that found all five categories of mismatches:
+The following example shows SARIF output from a scan that found multiple mismatch categories:
 
 ```json
 {
@@ -220,7 +225,7 @@ When no mismatches are found, the output is a valid SARIF document with empty `r
 - **tool.driver.name**: Always `"capture"`
 - **tool.driver.rules**: Only rules with at least one result are included
 - **results**: Sorted by `ruleId`, then alphabetically by variable name
-- **locations**: Included for ENV002, ENV003, and ENV005 results when location data is available; omitted for ENV001 and ENV004
+- **locations**: Included for location-aware rules (ENV002, ENV003, ENV005, ENV006, ENV007, ENV009, ENV010) when data is available; omitted for declaration-only rules
 - **properties.declared_source**: Included for ENV001, ENV002, and ENV003 when declaration source is known
 
 ## Location Data
@@ -230,6 +235,7 @@ Results for rules that have source location information include a `locations` ar
 - **ENV002** (missing-variable): File path and line number where the variable is used in code
 - **ENV003** (code-uses-not-in-docker): File path and line number of the first usage in code
 - **ENV005** (docker-uses-undeclared): Dockerfile path and line number
+- **ENV010** (hardcoded-secret): File path and line number where the possible secret was detected
 
 Results for **ENV001** (unused-variable) and **ENV004** (docker-declares-unused) omit the `locations` array since these findings relate to declarations without specific source code references.
 

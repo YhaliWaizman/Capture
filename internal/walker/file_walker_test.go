@@ -180,11 +180,11 @@ func TestFileWalker_Walk(t *testing.T) {
 	t.Run("Case-sensitive extension matching", func(t *testing.T) {
 		// Create files with uppercase extensions
 		upperFiles := map[string]string{
-			"src/test.JS": "// Should not match",
-			"src/test.TS": "// Should not match",
-			"src/test.GO": "// Should not match",
-			"src/test.PY": "// Should not match",
-			"src/test.RB": "// Should not match",
+			"src/test.JS":  "// Should not match",
+			"src/test.TS":  "// Should not match",
+			"src/test.GO":  "// Should not match",
+			"src/test.PY":  "// Should not match",
+			"src/test.RB":  "// Should not match",
 			"src/test.PHP": "// Should not match",
 		}
 

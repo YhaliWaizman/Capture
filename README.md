@@ -4,7 +4,7 @@ A static analysis CLI tool that identifies mismatches between environment variab
 
 ## Features
 
-- 🔍 Detects environment variable usage in JavaScript, TypeScript, Go, and Python
+- 🔍 Detects environment variable usage in JavaScript, TypeScript, Go, Python, and Ruby
 - 🐳 Analyzes Dockerfiles for ENV/ARG declarations and variable usage
 - 🔄 Cross-checks variables between .env, Dockerfile, and source code
 - 🎯 Pattern-based detection without AST parsing for simplicity and speed
@@ -169,6 +169,7 @@ Command-line flags always override config file values.
 | TypeScript | `process.env.VAR`, `process.env["VAR"]`, `process.env['VAR']` |
 | Go         | `os.Getenv("VAR")`, `os.LookupEnv("VAR")` |
 | Python     | `os.getenv("VAR")`, `os.environ["VAR"]`, `os.environ['VAR']` |
+| Ruby       | `ENV["VAR"]`, `ENV['VAR']`, `ENV.fetch("VAR")`, `ENV.fetch('VAR')` |
 | Dockerfile | `ENV KEY=value`, `ARG KEY=default`, `$VAR`, `${VAR}` |
 
 ## Dockerfile Analysis
@@ -282,7 +283,7 @@ See [docs/SARIF_OUTPUT.md](docs/SARIF_OUTPUT.md) for the full SARIF output forma
 ## How It Works
 
 1. **Parse .env file**: Extracts declared variable names matching `^[A-Z][A-Z0-9_]*# capture
-2. **Walk directory tree**: Recursively finds source files (.js, .ts, .go, .py) and Dockerfiles
+2. **Walk directory tree**: Recursively finds source files (.js, .ts, .go, .py, .rb) and Dockerfiles
 3. **Analyze Dockerfiles**: Extracts ENV/ARG declarations and variable usage
 4. **Detect usage**: Applies regex patterns to find environment variable references in source code
 5. **Compare sets**: Identifies mismatches:

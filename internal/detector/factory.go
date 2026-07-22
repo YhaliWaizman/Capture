@@ -21,6 +21,8 @@ func (f *DetectorFactory) Create(extension string) types.LanguageDetector {
 		return NewGoDetector()
 	case ".py":
 		return NewPythonDetector()
+	case ".rb":
+		return NewRubyDetector()
 	default:
 		return nil
 	}

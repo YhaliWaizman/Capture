@@ -13,7 +13,7 @@ var rootCmd = &cobra.Command{
 	Long: `capture is a static analysis CLI tool that identifies mismatches between 
 environment variables declared in .env files, Dockerfiles, and source code.
 
-It supports JavaScript, TypeScript, Go, Python, and Dockerfile analysis.`,
+It supports JavaScript, TypeScript, Go, Python, Ruby, and Dockerfile analysis.`,
 	SilenceUsage:  true,
 	SilenceErrors: true,
 }

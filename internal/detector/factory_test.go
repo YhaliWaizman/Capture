@@ -56,6 +56,19 @@ func TestDetectorFactory_CreatePythonDetector(t *testing.T) {
 	}
 }
 
+func TestDetectorFactory_CreateRubyDetector(t *testing.T) {
+	factory := NewDetectorFactory()
+
+	detector := factory.Create(".rb")
+	if detector == nil {
+		t.Error("Expected RubyDetector for .rb extension, got nil")
+	}
+
+	if _, ok := detector.(*RubyDetector); !ok {
+		t.Error("Expected RubyDetector type for .rb extension")
+	}
+}
+
 func TestDetectorFactory_CreateUnsupportedExtension(t *testing.T) {
 	factory := NewDetectorFactory()
 

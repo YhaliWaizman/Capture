@@ -35,6 +35,7 @@ func TestFileWalker_Walk(t *testing.T) {
 		"src/app.ts":               "// TypeScript file",
 		"src/main.go":              "// Go file",
 		"src/script.py":            "// Python file",
+		"src/config.rb":            "# Ruby file",
 		"src/components/button.js": "// Component file",
 		"src/components/button.ts": "// Component file",
 		"src/readme.md":            "# Markdown file",
@@ -63,10 +64,11 @@ func TestFileWalker_Walk(t *testing.T) {
 		// Sort for consistent comparison
 		sort.Strings(result)
 
-		// Expected files (should include .js, .ts, .go, .py but not files in ignored dirs)
+		// Expected files (should include .js, .ts, .go, .py, .rb but not files in ignored dirs)
 		expected := []string{
 			filepath.Join(tmpDir, "src/app.js"),
 			filepath.Join(tmpDir, "src/app.ts"),
+			filepath.Join(tmpDir, "src/config.rb"),
 			filepath.Join(tmpDir, "src/components/button.js"),
 			filepath.Join(tmpDir, "src/components/button.ts"),
 			filepath.Join(tmpDir, "src/main.go"),
@@ -96,7 +98,7 @@ func TestFileWalker_Walk(t *testing.T) {
 		}
 
 		// Verify only valid extensions are included
-		validExts := map[string]bool{".js": true, ".ts": true, ".go": true, ".py": true}
+		validExts := map[string]bool{".js": true, ".ts": true, ".go": true, ".py": true, ".rb": true}
 		for _, file := range result {
 			ext := filepath.Ext(file)
 			if !validExts[ext] {
@@ -180,6 +182,7 @@ func TestFileWalker_Walk(t *testing.T) {
 			"src/test.TS": "// Should not match",
 			"src/test.GO": "// Should not match",
 			"src/test.PY": "// Should not match",
+			"src/test.RB": "// Should not match",
 		}
 
 		for path, content := range upperFiles {
@@ -199,7 +202,7 @@ func TestFileWalker_Walk(t *testing.T) {
 		// Verify uppercase extensions are not included
 		for _, file := range result {
 			ext := filepath.Ext(file)
-			if ext == ".JS" || ext == ".TS" || ext == ".GO" || ext == ".PY" {
+			if ext == ".JS" || ext == ".TS" || ext == ".GO" || ext == ".PY" || ext == ".RB" {
 				t.Errorf("File with uppercase extension should not be included: %s", file)
 			}
 		}

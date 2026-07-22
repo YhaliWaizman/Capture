@@ -14,7 +14,7 @@ type FileWalkerImpl struct {
 // NewFileWalker creates a new FileWalker instance
 func NewFileWalker() *FileWalkerImpl {
 	return &FileWalkerImpl{
-		extensions:    []string{".js", ".ts", ".go", ".py"},
+		extensions:    []string{".js", ".ts", ".go", ".py", ".rb"},
 		defaultIgnore: []string{".git", "node_modules", "vendor"},
 	}
 }

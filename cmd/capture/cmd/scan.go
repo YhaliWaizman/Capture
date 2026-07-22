@@ -1,9 +1,12 @@
 package cmd
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"sort"
@@ -24,12 +27,14 @@ import (
 
 // ScanConfig holds the configuration for the scan command
 type ScanConfig struct {
-	Dir      string
-	EnvFiles []string
-	Ignore   []string
-	Format   string
-	Config   string
-	Workers  int
+	Dir         string
+	EnvFiles    []string
+	Ignore      []string
+	Format      string
+	Config      string
+	Workers     int
+	Incremental bool
+	NoCache     bool
 }
 
 var scanConfig ScanConfig
@@ -61,6 +66,8 @@ func init() {
 	scanCmd.Flags().StringVar(&scanConfig.Format, "format", "text", "Output format: text, json, or sarif")
 	scanCmd.Flags().StringVar(&scanConfig.Config, "config", "", "Path to config file (.capture.yaml/.yml/.json)")
 	scanCmd.Flags().IntVar(&scanConfig.Workers, "workers", runtime.NumCPU(), "Number of parallel workers for source file scanning")
+	scanCmd.Flags().BoolVar(&scanConfig.Incremental, "incremental", false, "Only scan files changed since the last scan (uses .capture/cache.json)")
+	scanCmd.Flags().BoolVar(&scanConfig.NoCache, "no-cache", false, "Disable scan cache and force a full scan")
 }
 
 func runScan(cmd *cobra.Command, args []string) error {
@@ -109,20 +116,24 @@ func runScan(cmd *cobra.Command, args []string) error {
 }
 
 type scanFileConfig struct {
-	Root     string   `yaml:"root" json:"root"`
-	EnvFiles []string `yaml:"env_files" json:"env_files"`
-	Ignore   []string `yaml:"ignore" json:"ignore"`
-	Format   string   `yaml:"format" json:"format"`
-	Workers  int      `yaml:"workers" json:"workers"`
+	Root        string   `yaml:"root" json:"root"`
+	EnvFiles    []string `yaml:"env_files" json:"env_files"`
+	Ignore      []string `yaml:"ignore" json:"ignore"`
+	Format      string   `yaml:"format" json:"format"`
+	Workers     int      `yaml:"workers" json:"workers"`
+	Incremental bool     `yaml:"incremental" json:"incremental"`
+	NoCache     bool     `yaml:"no_cache" json:"no_cache"`
 }
 
 func resolveScanConfig(cmd *cobra.Command) (ScanConfig, error) {
 	config := ScanConfig{
-		Dir:      ".",
-		EnvFiles: []string{".env"},
-		Ignore:   []string{},
-		Format:   "text",
-		Workers:  runtime.NumCPU(),
+		Dir:         ".",
+		EnvFiles:    []string{".env"},
+		Ignore:      []string{},
+		Format:      "text",
+		Workers:     runtime.NumCPU(),
+		Incremental: false,
+		NoCache:     false,
 	}
 
 	configPath, err := findConfigPath(cmd)
@@ -150,6 +161,12 @@ func resolveScanConfig(cmd *cobra.Command) (ScanConfig, error) {
 		if fileConfig.Workers > 0 {
 			config.Workers = fileConfig.Workers
 		}
+		if fileConfig.Incremental {
+			config.Incremental = true
+		}
+		if fileConfig.NoCache {
+			config.NoCache = true
+		}
 	}
 
 	if cmd.Flags().Changed("dir") {
@@ -169,6 +186,12 @@ func resolveScanConfig(cmd *cobra.Command) (ScanConfig, error) {
 	}
 	if cmd.Flags().Changed("workers") {
 		config.Workers = scanConfig.Workers
+	}
+	if cmd.Flags().Changed("incremental") {
+		config.Incremental = scanConfig.Incremental
+	}
+	if cmd.Flags().Changed("no-cache") {
+		config.NoCache = scanConfig.NoCache
 	}
 
 	return config, nil
@@ -256,6 +279,7 @@ func executeScan(config *ScanConfig) int {
 		fmt.Fprintln(os.Stderr, "Error: no readable env files found from --env-file values")
 		return 2
 	}
+	envFingerprint := computeEnvFingerprint(config.EnvFiles)
 
 	// Step 2: Walk directory tree to find source files
 	files, err := fileWalker.Walk(config.Dir, config.Ignore)
@@ -358,19 +382,46 @@ func executeScan(config *ScanConfig) int {
 		}
 	}
 
-	// Step 3: Detect environment variable usage in source files
 	used := make(map[string]bool)
 	allLocations := make(map[string][]types.Location)
+	cacheByFile := make(map[string]cachedFileResult)
+	sourceFilesToScan := sourceFiles
+	if config.Incremental && !config.NoCache {
+		changedFiles, err := detectChangedFiles(config.Dir)
+		if err == nil {
+			cache, cacheErr := loadScanCache(config.Dir)
+			if cacheErr == nil && cache.EnvFingerprint == envFingerprint {
+				sourceFilesToScan = make([]string, 0, len(sourceFiles))
+				for _, filePath := range sourceFiles {
+					rel := relativeToRoot(config.Dir, filePath)
+					cachedFile, ok := cache.Files[rel]
+					if ok && !changedFiles[rel] {
+						cacheByFile[rel] = cachedFile
+						for varName, locs := range cachedFile.Variables {
+							used[varName] = true
+							allLocations[varName] = append(allLocations[varName], locs...)
+						}
+						continue
+					}
+					sourceFilesToScan = append(sourceFilesToScan, filePath)
+				}
+			}
+		}
+	}
+
+	// Step 3: Detect environment variable usage in source files
 	type detectResult struct {
 		filePath  string
 		locations map[string][]types.Location
 		err       error
 	}
 	jobs := make(chan string)
-	results := make(chan detectResult, len(sourceFiles))
+	results := make(chan detectResult, len(sourceFilesToScan))
 	workers := config.Workers
-	if workers > len(sourceFiles) && len(sourceFiles) > 0 {
-		workers = len(sourceFiles)
+	if len(sourceFilesToScan) == 0 {
+		workers = 0
+	} else if workers > len(sourceFilesToScan) {
+		workers = len(sourceFilesToScan)
 	}
 	var wg sync.WaitGroup
 	for i := 0; i < workers; i++ {
@@ -389,7 +440,7 @@ func executeScan(config *ScanConfig) int {
 		}()
 	}
 	go func() {
-		for _, filePath := range sourceFiles {
+		for _, filePath := range sourceFilesToScan {
 			jobs <- filePath
 		}
 		close(jobs)
@@ -402,12 +453,25 @@ func executeScan(config *ScanConfig) int {
 			fmt.Fprintf(os.Stderr, "Warning: failed to process file %s: %v\n", result.filePath, result.err)
 			continue
 		}
+		rel := relativeToRoot(config.Dir, result.filePath)
+		cacheByFile[rel] = cachedFileResult{
+			Hash:      fileHash(result.filePath),
+			Variables: result.locations,
+		}
 		for varName, locs := range result.locations {
 			used[varName] = true
 			allLocations[varName] = append(allLocations[varName], locs...)
 		}
 	}
 	sortLocationMap(allLocations)
+	if config.Incremental && !config.NoCache {
+		if err := saveScanCache(config.Dir, scanCache{
+			EnvFingerprint: envFingerprint,
+			Files:          cacheByFile,
+		}); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to save cache: %v\n", err)
+		}
+	}
 
 	// Step 4: Compare declared vs used variables
 	diffResult := diffEngine.Compare(declared, used)
@@ -635,4 +699,111 @@ func sortLocationMap(locations map[string][]types.Location) {
 			return locations[varName][i].FilePath < locations[varName][j].FilePath
 		})
 	}
+}
+
+type cachedFileResult struct {
+	Hash      string                      `json:"hash"`
+	Variables map[string][]types.Location `json:"variables"`
+}
+
+type scanCache struct {
+	EnvFingerprint string                      `json:"env_fingerprint"`
+	Files          map[string]cachedFileResult `json:"files"`
+}
+
+func cachePath(root string) string {
+	return filepath.Join(root, ".capture", "cache.json")
+}
+
+func computeEnvFingerprint(envFiles []string) string {
+	hasher := sha256.New()
+	for _, envFile := range envFiles {
+		cleanPath := filepath.Clean(envFile)
+		_, _ = hasher.Write([]byte(cleanPath))
+		_, _ = hasher.Write([]byte{0})
+		content, err := os.ReadFile(envFile)
+		if err != nil {
+			_, _ = hasher.Write([]byte("ERR"))
+			_, _ = hasher.Write([]byte(err.Error()))
+			_, _ = hasher.Write([]byte{0})
+			continue
+		}
+		_, _ = hasher.Write(content)
+		_, _ = hasher.Write([]byte{0})
+	}
+	return hex.EncodeToString(hasher.Sum(nil))
+}
+
+func fileHash(path string) string {
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+	sum := sha256.Sum256(content)
+	return hex.EncodeToString(sum[:])
+}
+
+func loadScanCache(root string) (scanCache, error) {
+	data, err := os.ReadFile(cachePath(root))
+	if err != nil {
+		return scanCache{}, err
+	}
+	var cache scanCache
+	if err := json.Unmarshal(data, &cache); err != nil {
+		return scanCache{}, err
+	}
+	if cache.Files == nil {
+		cache.Files = make(map[string]cachedFileResult)
+	}
+	return cache, nil
+}
+
+func saveScanCache(root string, cache scanCache) error {
+	if cache.Files == nil {
+		cache.Files = make(map[string]cachedFileResult)
+	}
+	cacheDir := filepath.Join(root, ".capture")
+	if err := os.MkdirAll(cacheDir, 0755); err != nil {
+		return err
+	}
+	data, err := json.MarshalIndent(cache, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(cachePath(root), data, 0644)
+}
+
+func detectChangedFiles(root string) (map[string]bool, error) {
+	cmd := exec.Command("git", "-C", root, "status", "--porcelain", "--untracked-files=all")
+	out, err := cmd.Output()
+	if err != nil {
+		return nil, err
+	}
+	changed := make(map[string]bool)
+	for _, line := range strings.Split(string(out), "\n") {
+		if len(line) < 4 {
+			continue
+		}
+		pathPart := strings.TrimSpace(line[3:])
+		if pathPart == "" {
+			continue
+		}
+		if arrow := strings.LastIndex(pathPart, " -> "); arrow != -1 {
+			pathPart = pathPart[arrow+4:]
+		}
+		pathPart = strings.Trim(pathPart, `"`)
+		if pathPart == "" {
+			continue
+		}
+		changed[filepath.Clean(pathPart)] = true
+	}
+	return changed, nil
+}
+
+func relativeToRoot(root, path string) string {
+	rel, err := filepath.Rel(root, path)
+	if err != nil {
+		return filepath.Clean(path)
+	}
+	return filepath.Clean(rel)
 }

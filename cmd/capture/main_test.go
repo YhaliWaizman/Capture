@@ -607,3 +607,133 @@ func TestCLI_WorkersFlag_DeterministicParity(t *testing.T) {
 		t.Fatalf("Expected identical output across worker counts.\nworkers=1:\n%s\nworkers=4:\n%s", out1, out4)
 	}
 }
+
+func TestCLI_IncrementalScan_CreatesCacheAndDetectsGitChanges(t *testing.T) {
+	binary := buildBinary(t)
+
+	tmpDir := t.TempDir()
+	envFile := filepath.Join(tmpDir, ".env")
+	srcFile := filepath.Join(tmpDir, "app.js")
+
+	if err := os.WriteFile(envFile, []byte("API_KEY=test\n"), 0644); err != nil {
+		t.Fatalf("Failed to write .env file: %v", err)
+	}
+	if err := os.WriteFile(srcFile, []byte("console.log(process.env.API_KEY)\n"), 0644); err != nil {
+		t.Fatalf("Failed to write source file: %v", err)
+	}
+
+	initCmd := exec.Command("git", "init")
+	initCmd.Dir = tmpDir
+	if out, err := initCmd.CombinedOutput(); err != nil {
+		t.Fatalf("Failed to init git repo: %v\nOutput: %s", err, string(out))
+	}
+	addCmd := exec.Command("git", "add", ".")
+	addCmd.Dir = tmpDir
+	if out, err := addCmd.CombinedOutput(); err != nil {
+		t.Fatalf("Failed to add files: %v\nOutput: %s", err, string(out))
+	}
+	commitCmd := exec.Command("git", "-c", "user.name=Capture Test", "-c", "user.email=capture@example.com", "commit", "-m", "init")
+	commitCmd.Dir = tmpDir
+	if out, err := commitCmd.CombinedOutput(); err != nil {
+		t.Fatalf("Failed to commit files: %v\nOutput: %s", err, string(out))
+	}
+
+	firstRun := exec.Command(binary, "scan", "--dir", tmpDir, "--env-file", envFile, "--incremental")
+	var firstOut, firstErr bytes.Buffer
+	firstRun.Stdout = &firstOut
+	firstRun.Stderr = &firstErr
+	if err := firstRun.Run(); err != nil {
+		t.Fatalf("Expected first incremental run to succeed, got: %v\nStdout: %s\nStderr: %s", err, firstOut.String(), firstErr.String())
+	}
+
+	cacheFile := filepath.Join(tmpDir, ".capture", "cache.json")
+	if _, err := os.Stat(cacheFile); err != nil {
+		t.Fatalf("Expected cache file to be created at %s: %v", cacheFile, err)
+	}
+
+	if err := os.WriteFile(srcFile, []byte("console.log(process.env.API_KEY)\nconsole.log(process.env.NEW_VAR)\n"), 0644); err != nil {
+		t.Fatalf("Failed to update source file: %v", err)
+	}
+
+	secondRun := exec.Command(binary, "scan", "--dir", tmpDir, "--env-file", envFile, "--incremental")
+	var secondOut, secondErr bytes.Buffer
+	secondRun.Stdout = &secondOut
+	secondRun.Stderr = &secondErr
+	err := secondRun.Run()
+	if exitErr, ok := err.(*exec.ExitError); ok {
+		if exitErr.ExitCode() != 1 {
+			t.Fatalf("Expected exit code 1 after changed file scan, got %d\nStdout: %s\nStderr: %s", exitErr.ExitCode(), secondOut.String(), secondErr.String())
+		}
+	} else if err == nil {
+		t.Fatal("Expected mismatches (exit code 1) after introducing NEW_VAR")
+	} else {
+		t.Fatalf("Unexpected command error: %v\nStdout: %s\nStderr: %s", err, secondOut.String(), secondErr.String())
+	}
+
+	if !strings.Contains(secondOut.String(), "NEW_VAR") {
+		t.Fatalf("Expected NEW_VAR mismatch in output, got: %s", secondOut.String())
+	}
+}
+
+func TestCLI_IncrementalScan_NoCacheFlagForcesFullScan(t *testing.T) {
+	binary := buildBinary(t)
+
+	tmpDir := t.TempDir()
+	envFile := filepath.Join(tmpDir, ".env")
+	srcFile := filepath.Join(tmpDir, "app.js")
+
+	if err := os.WriteFile(envFile, []byte("API_KEY=test\n"), 0644); err != nil {
+		t.Fatalf("Failed to write .env file: %v", err)
+	}
+	if err := os.WriteFile(srcFile, []byte("console.log(process.env.API_KEY)\n"), 0644); err != nil {
+		t.Fatalf("Failed to write source file: %v", err)
+	}
+
+	cmd := exec.Command(binary, "scan", "--dir", tmpDir, "--env-file", envFile, "--incremental", "--no-cache")
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("Expected scan to succeed, got: %v\nStdout: %s\nStderr: %s", err, stdout.String(), stderr.String())
+	}
+
+	cacheFile := filepath.Join(tmpDir, ".capture", "cache.json")
+	if _, err := os.Stat(cacheFile); !os.IsNotExist(err) {
+		t.Fatalf("Expected no cache file when --no-cache is set, got stat err=%v", err)
+	}
+}
+
+func TestCLI_IncrementalScan_FallsBackWithoutGit(t *testing.T) {
+	binary := buildBinary(t)
+
+	tmpDir := t.TempDir()
+	envFile := filepath.Join(tmpDir, ".env")
+	srcFile := filepath.Join(tmpDir, "app.js")
+
+	if err := os.WriteFile(envFile, []byte("API_KEY=test\n"), 0644); err != nil {
+		t.Fatalf("Failed to write .env file: %v", err)
+	}
+	if err := os.WriteFile(srcFile, []byte("console.log(process.env.MISSING_VAR)\n"), 0644); err != nil {
+		t.Fatalf("Failed to write source file: %v", err)
+	}
+
+	cmd := exec.Command(binary, "scan", "--dir", tmpDir, "--env-file", envFile, "--incremental")
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	err := cmd.Run()
+	if exitErr, ok := err.(*exec.ExitError); ok {
+		if exitErr.ExitCode() != 1 {
+			t.Fatalf("Expected exit code 1 for mismatch fallback scan, got %d\nStdout: %s\nStderr: %s", exitErr.ExitCode(), stdout.String(), stderr.String())
+		}
+	} else if err == nil {
+		t.Fatal("Expected mismatch exit code 1, got 0")
+	} else {
+		t.Fatalf("Unexpected command error: %v\nStdout: %s\nStderr: %s", err, stdout.String(), stderr.String())
+	}
+
+	if !strings.Contains(stdout.String(), "MISSING_VAR") {
+		t.Fatalf("Expected MISSING_VAR in output, got: %s", stdout.String())
+	}
+}

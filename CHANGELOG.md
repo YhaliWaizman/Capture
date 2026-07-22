@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Features
 
 * **performance:** add parallel source-file processing with configurable `--workers` for faster scans on multi-core systems
+* **performance:** add incremental scanning with `--incremental` and git-aware cache at `.capture/cache.json`, plus `--no-cache` to force full scans
 
 ## [1.4.0](https://github.com/YhaliWaizman/Capture/compare/v1.3.0...v1.4.0) (2026-07-22)
 

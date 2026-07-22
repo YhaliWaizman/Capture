@@ -10,6 +10,7 @@ A static analysis CLI tool that identifies mismatches between environment variab
 - 🔄 Cross-checks variables between .env, Dockerfile, and source code
 - 🎯 Pattern-based detection without AST parsing for simplicity and speed
 - ⚡ Parallel source-file scanning with configurable workers (`--workers`)
+- ⚡ Incremental scanning with git-aware caching (`--incremental`, `.capture/cache.json`)
 - 🔄 Deterministic output for reliable CI/CD integration
 - ⚡ Memory-efficient streaming file processing
 - 🚫 Configurable directory ignore patterns
@@ -88,6 +89,14 @@ capture scan --dir ./project \
 capture scan --dir ./project --env-file .env --ignore vendor,tmp,cache
 ```
 
+### Incremental Scan
+
+```bash
+capture scan --dir ./project --env-file .env --incremental
+```
+
+Use `--no-cache` with `--incremental` to force a full scan.
+
 ### With Configuration File
 
 ```bash
@@ -133,6 +142,8 @@ Dockerfile uses undeclared variables:
 - `--ignore` (optional): Comma-separated list of directories to ignore
 - `--format` (optional): Output format - `text` (default), `json`, or `sarif`
 - `--workers` (optional): Number of parallel workers for source file scanning (default: CPU count; set `1` for sequential)
+- `--incremental` (optional): Only scan changed files using git change detection and cache results in `.capture/cache.json`
+- `--no-cache` (optional): Disable cache usage and force a full scan (useful with `--incremental`)
 - `--config` (optional): Path to config file. If not set, `capture` looks for `.capture.yaml`, then `.capture.yml`, then `.capture.json` in the current directory.
 
 ## Exit Codes
@@ -161,6 +172,8 @@ ignore:
   - node_modules
 format: text
 workers: 8
+incremental: true
+no_cache: false
 ```
 
 Command-line flags always override config file values.

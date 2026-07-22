@@ -208,6 +208,174 @@ func TestCLI_MissingEnvFile_WarnAndContinue(t *testing.T) {
 	}
 }
 
+func TestCLI_ConfigFile_AutoDiscovery_AllFormats(t *testing.T) {
+	binary := buildBinary(t)
+
+	tests := []struct {
+		name       string
+		configName string
+		configBody string
+	}{
+		{
+			name:       "yaml",
+			configName: ".capture.yaml",
+			configBody: "root: .\nenv_files:\n  - .env\nformat: text\n",
+		},
+		{
+			name:       "yml",
+			configName: ".capture.yml",
+			configBody: "root: .\nenv_files:\n  - .env\nformat: text\n",
+		},
+		{
+			name:       "json",
+			configName: ".capture.json",
+			configBody: "{\n  \"root\": \".\",\n  \"env_files\": [\".env\"],\n  \"format\": \"text\"\n}\n",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tmpDir := t.TempDir()
+			envFile := filepath.Join(tmpDir, ".env")
+			srcFile := filepath.Join(tmpDir, "app.js")
+			configFile := filepath.Join(tmpDir, tt.configName)
+
+			if err := os.WriteFile(envFile, []byte("API_KEY=test\n"), 0644); err != nil {
+				t.Fatalf("Failed to write .env file: %v", err)
+			}
+			if err := os.WriteFile(srcFile, []byte("console.log(process.env.API_KEY);\n"), 0644); err != nil {
+				t.Fatalf("Failed to write source file: %v", err)
+			}
+			if err := os.WriteFile(configFile, []byte(tt.configBody), 0644); err != nil {
+				t.Fatalf("Failed to write config file: %v", err)
+			}
+
+			cmd := exec.Command(binary, "scan")
+			cmd.Dir = tmpDir
+			var stdout, stderr bytes.Buffer
+			cmd.Stdout = &stdout
+			cmd.Stderr = &stderr
+
+			if err := cmd.Run(); err != nil {
+				t.Fatalf("Expected exit code 0, got: %v\nStdout: %s\nStderr: %s", err, stdout.String(), stderr.String())
+			}
+
+			if !strings.Contains(stdout.String(), "No environment mismatches found.") {
+				t.Fatalf("Expected success output, got: %s", stdout.String())
+			}
+		})
+	}
+}
+
+func TestCLI_ConfigFile_FlagOverridesConfigValues(t *testing.T) {
+	binary := buildBinary(t)
+
+	tmpDir := t.TempDir()
+	envFile := filepath.Join(tmpDir, ".env")
+	srcFile := filepath.Join(tmpDir, "app.js")
+	configFile := filepath.Join(tmpDir, ".capture.yaml")
+
+	if err := os.WriteFile(envFile, []byte("API_KEY=test\n"), 0644); err != nil {
+		t.Fatalf("Failed to write .env file: %v", err)
+	}
+	if err := os.WriteFile(srcFile, []byte("console.log(process.env.API_KEY);\n"), 0644); err != nil {
+		t.Fatalf("Failed to write source file: %v", err)
+	}
+	if err := os.WriteFile(configFile, []byte("root: .\nenv_files:\n  - missing.env\nformat: json\n"), 0644); err != nil {
+		t.Fatalf("Failed to write config file: %v", err)
+	}
+
+	cmd := exec.Command(binary, "scan", "--env-file", ".env", "--format", "text")
+	cmd.Dir = tmpDir
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("Expected exit code 0, got: %v\nStdout: %s\nStderr: %s", err, stdout.String(), stderr.String())
+	}
+
+	if strings.Contains(stdout.String(), "{") {
+		t.Fatalf("Expected text output override, got JSON-like output: %s", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "No environment mismatches found.") {
+		t.Fatalf("Expected success output, got: %s", stdout.String())
+	}
+}
+
+func TestCLI_ConfigFile_ExplicitConfigPath(t *testing.T) {
+	binary := buildBinary(t)
+
+	tmpDir := t.TempDir()
+	envFile := filepath.Join(tmpDir, ".env")
+	srcFile := filepath.Join(tmpDir, "app.js")
+	configFile := filepath.Join(tmpDir, "capture.config.json")
+
+	if err := os.WriteFile(envFile, []byte("API_KEY=test\n"), 0644); err != nil {
+		t.Fatalf("Failed to write .env file: %v", err)
+	}
+	if err := os.WriteFile(srcFile, []byte("console.log(process.env.API_KEY);\n"), 0644); err != nil {
+		t.Fatalf("Failed to write source file: %v", err)
+	}
+	if err := os.WriteFile(configFile, []byte("{\n  \"root\": \".\",\n  \"env_files\": [\".env\"],\n  \"format\": \"text\"\n}\n"), 0644); err != nil {
+		t.Fatalf("Failed to write config file: %v", err)
+	}
+
+	cmd := exec.Command(binary, "scan", "--config", configFile)
+	cmd.Dir = tmpDir
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("Expected exit code 0, got: %v\nStdout: %s\nStderr: %s", err, stdout.String(), stderr.String())
+	}
+
+	if !strings.Contains(stdout.String(), "No environment mismatches found.") {
+		t.Fatalf("Expected success output, got: %s", stdout.String())
+	}
+}
+
+func TestCLI_ConfigFile_InvalidConfig(t *testing.T) {
+	binary := buildBinary(t)
+
+	tmpDir := t.TempDir()
+	envFile := filepath.Join(tmpDir, ".env")
+	srcFile := filepath.Join(tmpDir, "app.js")
+	configFile := filepath.Join(tmpDir, ".capture.yaml")
+
+	if err := os.WriteFile(envFile, []byte("API_KEY=test\n"), 0644); err != nil {
+		t.Fatalf("Failed to write .env file: %v", err)
+	}
+	if err := os.WriteFile(srcFile, []byte("console.log(process.env.API_KEY);\n"), 0644); err != nil {
+		t.Fatalf("Failed to write source file: %v", err)
+	}
+	if err := os.WriteFile(configFile, []byte("root: .\nunknown_field: true\n"), 0644); err != nil {
+		t.Fatalf("Failed to write config file: %v", err)
+	}
+
+	cmd := exec.Command(binary, "scan")
+	cmd.Dir = tmpDir
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	err := cmd.Run()
+	if exitErr, ok := err.(*exec.ExitError); ok {
+		if exitErr.ExitCode() != 2 {
+			t.Fatalf("Expected exit code 2, got %d\nStdout: %s\nStderr: %s", exitErr.ExitCode(), stdout.String(), stderr.String())
+		}
+	} else if err == nil {
+		t.Fatal("Expected config validation error, got exit code 0")
+	} else {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	if !strings.Contains(stderr.String(), "invalid YAML config") {
+		t.Fatalf("Expected invalid config error, got stderr: %s", stderr.String())
+	}
+}
+
 // TestCLI_MissingDirectory tests behavior when directory doesn't exist (exit code 2)
 // Requirement: 13.7
 func TestCLI_MissingDirectory(t *testing.T) {

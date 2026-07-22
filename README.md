@@ -86,6 +86,16 @@ capture scan --dir ./project \
 capture scan --dir ./project --env-file .env --ignore vendor,tmp,cache
 ```
 
+### With Configuration File
+
+```bash
+# Auto-detects .capture.yaml/.capture.yml/.capture.json in current directory
+capture scan
+
+# Use explicit config file path
+capture scan --config .capture.prod.yaml
+```
+
 ### Example Output
 
 **No mismatches:**
@@ -120,6 +130,7 @@ Dockerfile uses undeclared variables:
 - `--env-file` (required, repeatable): Path to an env file. When repeated, later files override earlier ones for declaration source.
 - `--ignore` (optional): Comma-separated list of directories to ignore
 - `--format` (optional): Output format - `text` (default), `json`, or `sarif`
+- `--config` (optional): Path to config file. If not set, `capture` looks for `.capture.yaml`, then `.capture.yml`, then `.capture.json` in the current directory.
 
 ## Exit Codes
 
@@ -129,6 +140,26 @@ Dockerfile uses undeclared variables:
 
 If one of multiple `--env-file` values is unreadable, `capture` prints a warning and continues with readable files.
 If none of the provided/default env files are readable, `capture` exits with code `2`.
+
+## Configuration File
+
+Supported filenames (auto-discovery order):
+1. `.capture.yaml`
+2. `.capture.yml`
+3. `.capture.json`
+
+Supported keys:
+
+```yaml
+root: .
+env_files:
+  - .env
+ignore:
+  - node_modules
+format: text
+```
+
+Command-line flags always override config file values.
 
 ## Supported Languages
 

@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -15,6 +16,7 @@ import (
 	"github.com/yhaliwaizman/capture/internal/reporter"
 	"github.com/yhaliwaizman/capture/internal/types"
 	"github.com/yhaliwaizman/capture/internal/walker"
+	"gopkg.in/yaml.v3"
 )
 
 // ScanConfig holds the configuration for the scan command
@@ -23,6 +25,7 @@ type ScanConfig struct {
 	EnvFiles []string
 	Ignore   []string
 	Format   string
+	Config   string
 }
 
 var scanConfig ScanConfig
@@ -52,41 +55,155 @@ func init() {
 	scanCmd.Flags().StringSliceVar(&scanConfig.EnvFiles, "env-file", []string{".env"}, "Path to .env file (repeatable). Later files override earlier ones")
 	scanCmd.Flags().StringSliceVar(&scanConfig.Ignore, "ignore", []string{}, "Comma-separated list of directories to ignore")
 	scanCmd.Flags().StringVar(&scanConfig.Format, "format", "text", "Output format: text, json, or sarif")
+	scanCmd.Flags().StringVar(&scanConfig.Config, "config", "", "Path to config file (.capture.yaml/.yml/.json)")
 }
 
 func runScan(cmd *cobra.Command, args []string) error {
+	config, err := resolveScanConfig(cmd)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		return NewExitError(err, 2)
+	}
+
 	// Validate format flag
-	if scanConfig.Format != "text" && scanConfig.Format != "json" && scanConfig.Format != "sarif" {
-		fmt.Fprintf(os.Stderr, "Error: invalid format '%s'. Must be 'text', 'json', or 'sarif'\n", scanConfig.Format)
+	if config.Format != "text" && config.Format != "json" && config.Format != "sarif" {
+		fmt.Fprintf(os.Stderr, "Error: invalid format '%s'. Must be 'text', 'json', or 'sarif'\n", config.Format)
 		return NewExitError(fmt.Errorf("invalid format"), 2)
 	}
 
 	// Validate directory exists
-	if info, err := os.Stat(scanConfig.Dir); os.IsNotExist(err) {
-		fmt.Fprintf(os.Stderr, "Error: directory does not exist: %s\n", scanConfig.Dir)
+	if info, err := os.Stat(config.Dir); os.IsNotExist(err) {
+		fmt.Fprintf(os.Stderr, "Error: directory does not exist: %s\n", config.Dir)
 		return NewExitError(err, 2)
 	} else if err != nil {
 		// Handle permission errors
 		fmt.Fprintf(os.Stderr, "Error: cannot access directory: %v\n", err)
 		return NewExitError(err, 2)
 	} else if !info.IsDir() {
-		fmt.Fprintf(os.Stderr, "Error: path is not a directory: %s\n", scanConfig.Dir)
+		fmt.Fprintf(os.Stderr, "Error: path is not a directory: %s\n", config.Dir)
 		return NewExitError(fmt.Errorf("not a directory"), 2)
 	}
 
 	// Trim whitespace from ignore directories
-	for i := range scanConfig.Ignore {
-		scanConfig.Ignore[i] = strings.TrimSpace(scanConfig.Ignore[i])
+	for i := range config.Ignore {
+		config.Ignore[i] = strings.TrimSpace(config.Ignore[i])
 	}
 
 	// Execute the scan
-	exitCode := executeScan(&scanConfig)
+	exitCode := executeScan(&config)
 
 	if exitCode != 0 {
 		return NewExitError(nil, exitCode)
 	}
 
 	return nil
+}
+
+type scanFileConfig struct {
+	Root     string   `yaml:"root" json:"root"`
+	EnvFiles []string `yaml:"env_files" json:"env_files"`
+	Ignore   []string `yaml:"ignore" json:"ignore"`
+	Format   string   `yaml:"format" json:"format"`
+}
+
+func resolveScanConfig(cmd *cobra.Command) (ScanConfig, error) {
+	config := ScanConfig{
+		Dir:      ".",
+		EnvFiles: []string{".env"},
+		Ignore:   []string{},
+		Format:   "text",
+	}
+
+	configPath, err := findConfigPath(cmd)
+	if err != nil {
+		return config, err
+	}
+	if configPath != "" {
+		fileConfig, err := parseScanFileConfig(configPath)
+		if err != nil {
+			return config, err
+		}
+		config.Config = configPath
+		if fileConfig.Root != "" {
+			config.Dir = fileConfig.Root
+		}
+		if len(fileConfig.EnvFiles) > 0 {
+			config.EnvFiles = fileConfig.EnvFiles
+		}
+		if len(fileConfig.Ignore) > 0 {
+			config.Ignore = fileConfig.Ignore
+		}
+		if fileConfig.Format != "" {
+			config.Format = fileConfig.Format
+		}
+	}
+
+	if cmd.Flags().Changed("dir") {
+		config.Dir = scanConfig.Dir
+	}
+	if cmd.Flags().Changed("env-file") {
+		config.EnvFiles = scanConfig.EnvFiles
+	}
+	if cmd.Flags().Changed("ignore") {
+		config.Ignore = scanConfig.Ignore
+	}
+	if cmd.Flags().Changed("format") {
+		config.Format = scanConfig.Format
+	}
+	if cmd.Flags().Changed("config") {
+		config.Config = scanConfig.Config
+	}
+
+	return config, nil
+}
+
+func findConfigPath(cmd *cobra.Command) (string, error) {
+	if cmd.Flags().Changed("config") {
+		if scanConfig.Config == "" {
+			return "", fmt.Errorf("--config cannot be empty")
+		}
+		if _, err := os.Stat(scanConfig.Config); err != nil {
+			return "", fmt.Errorf("failed to read config file %s: %w", scanConfig.Config, err)
+		}
+		return scanConfig.Config, nil
+	}
+
+	for _, candidate := range []string{".capture.yaml", ".capture.yml", ".capture.json"} {
+		if _, err := os.Stat(candidate); err == nil {
+			return candidate, nil
+		}
+	}
+	return "", nil
+}
+
+func parseScanFileConfig(configPath string) (scanFileConfig, error) {
+	var fileConfig scanFileConfig
+
+	file, err := os.Open(configPath)
+	if err != nil {
+		return fileConfig, fmt.Errorf("failed to read config file %s: %w", configPath, err)
+	}
+	defer file.Close()
+
+	ext := strings.ToLower(filepath.Ext(configPath))
+	switch ext {
+	case ".yaml", ".yml":
+		decoder := yaml.NewDecoder(file)
+		decoder.KnownFields(true)
+		if err := decoder.Decode(&fileConfig); err != nil {
+			return fileConfig, fmt.Errorf("invalid YAML config %s: %w", configPath, err)
+		}
+	case ".json":
+		decoder := json.NewDecoder(file)
+		decoder.DisallowUnknownFields()
+		if err := decoder.Decode(&fileConfig); err != nil {
+			return fileConfig, fmt.Errorf("invalid JSON config %s: %w", configPath, err)
+		}
+	default:
+		return fileConfig, fmt.Errorf("unsupported config format for %s (use .yaml, .yml, or .json)", configPath)
+	}
+
+	return fileConfig, nil
 }
 
 // executeScan performs the actual scanning logic

@@ -7,11 +7,13 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"runtime"
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/spf13/cobra"
 	composeanalyzer "github.com/yhaliwaizman/capture/internal/compose"
@@ -35,6 +37,7 @@ type ScanConfig struct {
 	Workers     int
 	Incremental bool
 	NoCache     bool
+	Watch       bool
 }
 
 var scanConfig ScanConfig
@@ -68,6 +71,7 @@ func init() {
 	scanCmd.Flags().IntVar(&scanConfig.Workers, "workers", runtime.NumCPU(), "Number of parallel workers for source file scanning")
 	scanCmd.Flags().BoolVar(&scanConfig.Incremental, "incremental", false, "Only scan files changed since the last scan (uses .capture/cache.json)")
 	scanCmd.Flags().BoolVar(&scanConfig.NoCache, "no-cache", false, "Disable scan cache and force a full scan")
+	scanCmd.Flags().BoolVar(&scanConfig.Watch, "watch", false, "Watch files and re-run scans on changes")
 }
 
 func runScan(cmd *cobra.Command, args []string) error {
@@ -105,9 +109,15 @@ func runScan(cmd *cobra.Command, args []string) error {
 		config.Ignore[i] = strings.TrimSpace(config.Ignore[i])
 	}
 
-	// Execute the scan
-	exitCode := executeScan(&config)
+	if config.Watch {
+		exitCode := runWatchScan(&config)
+		if exitCode != 0 {
+			return NewExitError(nil, exitCode)
+		}
+		return nil
+	}
 
+	exitCode := executeScan(&config)
 	if exitCode != 0 {
 		return NewExitError(nil, exitCode)
 	}
@@ -123,6 +133,7 @@ type scanFileConfig struct {
 	Workers     int      `yaml:"workers" json:"workers"`
 	Incremental bool     `yaml:"incremental" json:"incremental"`
 	NoCache     bool     `yaml:"no_cache" json:"no_cache"`
+	Watch       bool     `yaml:"watch" json:"watch"`
 }
 
 func resolveScanConfig(cmd *cobra.Command) (ScanConfig, error) {
@@ -134,6 +145,7 @@ func resolveScanConfig(cmd *cobra.Command) (ScanConfig, error) {
 		Workers:     runtime.NumCPU(),
 		Incremental: false,
 		NoCache:     false,
+		Watch:       false,
 	}
 
 	configPath, err := findConfigPath(cmd)
@@ -167,6 +179,9 @@ func resolveScanConfig(cmd *cobra.Command) (ScanConfig, error) {
 		if fileConfig.NoCache {
 			config.NoCache = true
 		}
+		if fileConfig.Watch {
+			config.Watch = true
+		}
 	}
 
 	if cmd.Flags().Changed("dir") {
@@ -193,8 +208,151 @@ func resolveScanConfig(cmd *cobra.Command) (ScanConfig, error) {
 	if cmd.Flags().Changed("no-cache") {
 		config.NoCache = scanConfig.NoCache
 	}
+	if cmd.Flags().Changed("watch") {
+		config.Watch = scanConfig.Watch
+	}
 
 	return config, nil
+}
+
+const (
+	watchDebounceDelay = 500 * time.Millisecond
+	watchPollInterval  = 250 * time.Millisecond
+)
+
+func runWatchScan(config *ScanConfig) int {
+	printWatchStatus("Running initial scan...")
+	if initialExitCode := executeScan(config); initialExitCode == 2 {
+		return 2
+	}
+	printWatchStatus("Watching for changes... (Press Ctrl+C to stop)")
+
+	lastSnapshot, err := watchSnapshot(config.Dir, config.Ignore, config.EnvFiles)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: failed to initialize watcher snapshot: %v\n", err)
+		return 2
+	}
+
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt)
+	defer signal.Stop(sigChan)
+
+	ticker := time.NewTicker(watchPollInterval)
+	defer ticker.Stop()
+
+	pendingChange := false
+	lastChangeAt := time.Time{}
+	lastChangedFile := ""
+
+	for {
+		select {
+		case <-sigChan:
+			fmt.Fprintln(os.Stderr, "")
+			printWatchStatus("Watch mode stopped.")
+			return 0
+		case <-ticker.C:
+			nextSnapshot, changedFile, changed, snapErr := checkWatchChanges(config.Dir, config.Ignore, config.EnvFiles, lastSnapshot)
+			if snapErr != nil {
+				fmt.Fprintf(os.Stderr, "Warning: failed to check changes: %v\n", snapErr)
+				continue
+			}
+			if changed {
+				lastSnapshot = nextSnapshot
+				pendingChange = true
+				lastChangeAt = time.Now()
+				lastChangedFile = changedFile
+			}
+			if pendingChange && time.Since(lastChangeAt) >= watchDebounceDelay {
+				fmt.Fprint(os.Stderr, "\033[2J\033[H")
+				if lastChangedFile != "" {
+					printWatchStatus(fmt.Sprintf("Change detected: %s", lastChangedFile))
+				} else {
+					printWatchStatus("Change detected")
+				}
+				printWatchStatus("Running scan...")
+				_ = executeScan(config)
+				printWatchStatus("Watching for changes... (Press Ctrl+C to stop)")
+				pendingChange = false
+				lastChangedFile = ""
+			}
+		}
+	}
+}
+
+func printWatchStatus(message string) {
+	fmt.Fprintf(os.Stderr, "[%s] %s\n", time.Now().Format("2006-01-02 15:04:05"), message)
+}
+
+func checkWatchChanges(root string, ignoreDirs []string, envFiles []string, previous map[string]time.Time) (map[string]time.Time, string, bool, error) {
+	current, err := watchSnapshot(root, ignoreDirs, envFiles)
+	if err != nil {
+		return nil, "", false, err
+	}
+
+	for path, modTime := range current {
+		prevModTime, ok := previous[path]
+		if !ok || !modTime.Equal(prevModTime) {
+			return current, path, true, nil
+		}
+	}
+	for path := range previous {
+		if _, ok := current[path]; !ok {
+			return current, path, true, nil
+		}
+	}
+
+	return current, "", false, nil
+}
+
+func watchSnapshot(root string, ignoreDirs []string, envFiles []string) (map[string]time.Time, error) {
+	snapshot := make(map[string]time.Time)
+
+	ignoreMap := make(map[string]bool, len(ignoreDirs)+3)
+	ignoreMap[".git"] = true
+	ignoreMap["node_modules"] = true
+	ignoreMap["vendor"] = true
+	for _, dir := range ignoreDirs {
+		dir = strings.TrimSpace(dir)
+		if dir != "" {
+			ignoreMap[dir] = true
+		}
+	}
+
+	err := filepath.Walk(root, func(path string, info os.FileInfo, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if info.IsDir() {
+			if ignoreMap[info.Name()] {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		snapshot[filepath.Clean(path)] = info.ModTime()
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	for _, envFile := range envFiles {
+		envPath := filepath.Clean(envFile)
+		info, statErr := os.Stat(envPath)
+		if statErr == nil {
+			snapshot[envPath] = info.ModTime()
+			continue
+		}
+		if filepath.IsAbs(envPath) {
+			continue
+		}
+		joinedPath := filepath.Join(root, envPath)
+		joinedInfo, joinedErr := os.Stat(joinedPath)
+		if joinedErr == nil {
+			snapshot[filepath.Clean(joinedPath)] = joinedInfo.ModTime()
+		}
+	}
+
+	return snapshot, nil
 }
 
 func findConfigPath(cmd *cobra.Command) (string, error) {

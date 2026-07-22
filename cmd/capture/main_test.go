@@ -2,11 +2,14 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
+	"time"
 )
 
 // buildBinary builds the capture binary for testing
@@ -735,5 +738,58 @@ func TestCLI_IncrementalScan_FallsBackWithoutGit(t *testing.T) {
 
 	if !strings.Contains(stdout.String(), "MISSING_VAR") {
 		t.Fatalf("Expected MISSING_VAR in output, got: %s", stdout.String())
+	}
+}
+
+func TestCLI_WatchMode_ReRunsOnChange(t *testing.T) {
+	binary := buildBinary(t)
+
+	tmpDir := t.TempDir()
+	envFile := filepath.Join(tmpDir, ".env")
+	srcFile := filepath.Join(tmpDir, "app.js")
+
+	if err := os.WriteFile(envFile, []byte("API_KEY=test\n"), 0644); err != nil {
+		t.Fatalf("Failed to write .env file: %v", err)
+	}
+	if err := os.WriteFile(srcFile, []byte("console.log(process.env.API_KEY)\n"), 0644); err != nil {
+		t.Fatalf("Failed to write source file: %v", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, binary, "scan", "--dir", tmpDir, "--env-file", envFile, "--watch")
+	var stdoutBuf, stderrBuf bytes.Buffer
+	cmd.Stdout = &stdoutBuf
+	cmd.Stderr = &stderrBuf
+
+	if err := cmd.Start(); err != nil {
+		t.Fatalf("Failed to start watch command: %v", err)
+	}
+
+	time.Sleep(1200 * time.Millisecond)
+
+	if err := os.WriteFile(srcFile, []byte("console.log(process.env.API_KEY)\nconsole.log(process.env.MISSING_WATCH_MODE)\n"), 0644); err != nil {
+		t.Fatalf("Failed to update source file: %v", err)
+	}
+
+	time.Sleep(2 * time.Second)
+
+	if err := cmd.Process.Signal(os.Interrupt); err != nil {
+		t.Fatalf("Failed to send interrupt: %v", err)
+	}
+	waitErr := cmd.Wait()
+
+	if waitErr != nil {
+		t.Fatalf("Expected graceful shutdown on interrupt, got: %v\nStdout: %s\nStderr: %s", waitErr, stdoutBuf.String(), stderrBuf.String())
+	}
+	if !strings.Contains(stderrBuf.String(), "Watching for changes... (Press Ctrl+C to stop)") {
+		t.Fatalf("Expected watch mode status message, got stderr: %s", stderrBuf.String())
+	}
+	if !strings.Contains(stdoutBuf.String(), "MISSING_WATCH_MODE") {
+		t.Fatalf("Expected re-scan output after file change.\nStdout: %s\nStderr: %s", stdoutBuf.String(), stderrBuf.String())
+	}
+	if matched := regexp.MustCompile(`\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\]`).MatchString(stderrBuf.String()); !matched {
+		t.Fatalf("Expected timestamp in watch output, got stderr: %s", stderrBuf.String())
 	}
 }

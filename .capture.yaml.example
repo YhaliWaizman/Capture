@@ -6,3 +6,4 @@ ignore:
   - node_modules
   - vendor
 format: text
+watch: false

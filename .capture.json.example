@@ -2,5 +2,6 @@
   "root": ".",
   "env_files": [".env", ".env.local"],
   "ignore": ["node_modules", "vendor"],
-  "format": "text"
+  "format": "text",
+  "watch": false
 }

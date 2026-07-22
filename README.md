@@ -13,6 +13,7 @@ A static analysis CLI tool that identifies mismatches between environment variab
 - ⚡ Incremental scanning with git-aware caching (`--incremental`, `.capture/cache.json`)
 - 👀 Watch mode with automatic re-scan on file changes (`--watch`)
 - 🛠️ Auto-fix missing env variables with backup support (`--fix`, `--dry-run`, `--yes`)
+- 🧾 Generate `.env.example` templates from detected source usage (`template --output`)
 - 🔄 Deterministic output for reliable CI/CD integration
 - ⚡ Memory-efficient streaming file processing
 - 🚫 Configurable directory ignore patterns
@@ -116,6 +117,14 @@ capture scan --dir ./project --env-file .env --fix --yes
 `--fix` appends missing variables to the first `--env-file` and creates `<env-file>.backup` before writing.
 Use `--dry-run` to preview changes without modifying files.
 
+### Generate `.env.example` Template
+
+```bash
+capture template --root . --output .env.example
+```
+
+The generated file groups variables by prefix (`API_`, `DATABASE_`, etc.) and sorts variables alphabetically within each group.
+
 ### With Configuration File
 
 ```bash
@@ -156,6 +165,8 @@ Dockerfile uses undeclared variables:
 
 ## Command-Line Options
 
+### `scan` command
+
 - `--dir` (required): Directory to scan for source files
 - `--env-file` (required, repeatable): Path to an env file. When repeated, later files override earlier ones for declaration source.
 - `--ignore` (optional): Comma-separated list of directories to ignore
@@ -168,6 +179,12 @@ Dockerfile uses undeclared variables:
 - `--dry-run` (optional): Preview `--fix` changes without writing files (requires `--fix`)
 - `--yes` (optional): Skip confirmation prompt when using `--fix`
 - `--config` (optional): Path to config file. If not set, `capture` looks for `.capture.yaml`, then `.capture.yml`, then `.capture.json` in the current directory.
+
+### `template` command
+
+- `--root` (optional): Directory to scan for source files (default: `.`)
+- `--output` (optional): Output file path for generated template (default: `.env.example`)
+- `--ignore` (optional): Comma-separated list of directories to ignore
 
 ## Exit Codes
 

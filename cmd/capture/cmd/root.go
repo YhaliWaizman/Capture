@@ -52,5 +52,6 @@ func NewExitError(err error, code int) ExitError {
 func init() {
 	// Add subcommands
 	rootCmd.AddCommand(scanCmd)
+	rootCmd.AddCommand(templateCmd)
 	rootCmd.AddCommand(versionCmd)
 }

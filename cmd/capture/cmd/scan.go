@@ -1,10 +1,12 @@
 package cmd
 
 import (
+	"bufio"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -38,6 +40,9 @@ type ScanConfig struct {
 	Incremental bool
 	NoCache     bool
 	Watch       bool
+	Fix         bool
+	DryRun      bool
+	Yes         bool
 }
 
 var scanConfig ScanConfig
@@ -55,7 +60,8 @@ The tool will:
   - Report mismatches and inconsistencies`,
 	Example: `  capture scan --dir ./project --env-file .env
   capture scan --dir . --env-file .env --env-file .env.local --ignore vendor,tmp
-  capture scan --dir . --env-file .env --format json`,
+  capture scan --dir . --env-file .env --format json
+  capture scan --dir . --env-file .env --fix --yes`,
 	SilenceUsage:  true,
 	SilenceErrors: true,
 	RunE:          runScan,
@@ -72,6 +78,9 @@ func init() {
 	scanCmd.Flags().BoolVar(&scanConfig.Incremental, "incremental", false, "Only scan files changed since the last scan (uses .capture/cache.json)")
 	scanCmd.Flags().BoolVar(&scanConfig.NoCache, "no-cache", false, "Disable scan cache and force a full scan")
 	scanCmd.Flags().BoolVar(&scanConfig.Watch, "watch", false, "Watch files and re-run scans on changes")
+	scanCmd.Flags().BoolVar(&scanConfig.Fix, "fix", false, "Add missing variables to the first --env-file with empty values")
+	scanCmd.Flags().BoolVar(&scanConfig.DryRun, "dry-run", false, "Preview changes from --fix without writing files")
+	scanCmd.Flags().BoolVar(&scanConfig.Yes, "yes", false, "Skip confirmation prompt for --fix")
 }
 
 func runScan(cmd *cobra.Command, args []string) error {
@@ -89,6 +98,14 @@ func runScan(cmd *cobra.Command, args []string) error {
 	if config.Workers < 1 {
 		fmt.Fprintf(os.Stderr, "Error: invalid workers value '%d'. Must be >= 1\n", config.Workers)
 		return NewExitError(fmt.Errorf("invalid workers"), 2)
+	}
+	if config.DryRun && !config.Fix {
+		fmt.Fprintln(os.Stderr, "Error: --dry-run requires --fix")
+		return NewExitError(fmt.Errorf("invalid dry-run usage"), 2)
+	}
+	if config.Yes && !config.Fix {
+		fmt.Fprintln(os.Stderr, "Error: --yes requires --fix")
+		return NewExitError(fmt.Errorf("invalid yes usage"), 2)
 	}
 
 	// Validate directory exists
@@ -134,6 +151,9 @@ type scanFileConfig struct {
 	Incremental bool     `yaml:"incremental" json:"incremental"`
 	NoCache     bool     `yaml:"no_cache" json:"no_cache"`
 	Watch       bool     `yaml:"watch" json:"watch"`
+	Fix         bool     `yaml:"fix" json:"fix"`
+	DryRun      bool     `yaml:"dry_run" json:"dry_run"`
+	Yes         bool     `yaml:"yes" json:"yes"`
 }
 
 func resolveScanConfig(cmd *cobra.Command) (ScanConfig, error) {
@@ -146,6 +166,9 @@ func resolveScanConfig(cmd *cobra.Command) (ScanConfig, error) {
 		Incremental: false,
 		NoCache:     false,
 		Watch:       false,
+		Fix:         false,
+		DryRun:      false,
+		Yes:         false,
 	}
 
 	configPath, err := findConfigPath(cmd)
@@ -182,6 +205,15 @@ func resolveScanConfig(cmd *cobra.Command) (ScanConfig, error) {
 		if fileConfig.Watch {
 			config.Watch = true
 		}
+		if fileConfig.Fix {
+			config.Fix = true
+		}
+		if fileConfig.DryRun {
+			config.DryRun = true
+		}
+		if fileConfig.Yes {
+			config.Yes = true
+		}
 	}
 
 	if cmd.Flags().Changed("dir") {
@@ -210,6 +242,15 @@ func resolveScanConfig(cmd *cobra.Command) (ScanConfig, error) {
 	}
 	if cmd.Flags().Changed("watch") {
 		config.Watch = scanConfig.Watch
+	}
+	if cmd.Flags().Changed("fix") {
+		config.Fix = scanConfig.Fix
+	}
+	if cmd.Flags().Changed("dry-run") {
+		config.DryRun = scanConfig.DryRun
+	}
+	if cmd.Flags().Changed("yes") {
+		config.Yes = scanConfig.Yes
 	}
 
 	return config, nil
@@ -418,6 +459,7 @@ func executeScan(config *ScanConfig) int {
 	declared := make(map[string]bool)
 	declaredSources := make(map[string]string)
 	parsedEnvFiles := 0
+	firstReadableEnvFile := ""
 
 	for _, envFile := range config.EnvFiles {
 		parsedDeclared, err := envParser.Parse(envFile)
@@ -426,6 +468,9 @@ func executeScan(config *ScanConfig) int {
 			continue
 		}
 
+		if firstReadableEnvFile == "" {
+			firstReadableEnvFile = envFile
+		}
 		parsedEnvFiles++
 		for varName := range parsedDeclared {
 			declared[varName] = true
@@ -633,6 +678,45 @@ func executeScan(config *ScanConfig) int {
 
 	// Step 4: Compare declared vs used variables
 	diffResult := diffEngine.Compare(declared, used)
+
+	if config.Fix && len(diffResult.Missing) > 0 {
+		fixVars := append([]string(nil), diffResult.Missing...)
+		targetEnvFile := firstReadableEnvFile
+
+		if config.DryRun {
+			fmt.Fprintf(os.Stderr, "Dry run: would add %d missing variable(s) to %s\n", len(fixVars), targetEnvFile)
+			for _, varName := range fixVars {
+				fmt.Fprintf(os.Stderr, "- %s=\n", varName)
+			}
+		} else {
+			confirmed := config.Yes
+			if !confirmed {
+				var promptErr error
+				confirmed, promptErr = promptForFixConfirmation(targetEnvFile, len(fixVars))
+				if promptErr != nil {
+					fmt.Fprintf(os.Stderr, "Error: failed to read confirmation: %v\n", promptErr)
+					return 2
+				}
+			}
+
+			if !confirmed {
+				fmt.Fprintln(os.Stderr, "Auto-fix canceled.")
+			} else {
+				if err := applyMissingVarsFix(targetEnvFile, fixVars); err != nil {
+					fmt.Fprintf(os.Stderr, "Error: failed to apply --fix: %v\n", err)
+					return 2
+				}
+
+				for _, varName := range fixVars {
+					declared[varName] = true
+					declaredSources[varName] = targetEnvFile
+				}
+				diffResult = diffEngine.Compare(declared, used)
+
+				fmt.Fprintf(os.Stderr, "Auto-fix: added %d variable(s) to %s (backup: %s)\n", len(fixVars), targetEnvFile, targetEnvFile+".backup")
+			}
+		}
+	}
 
 	// Step 4.5: Docker cross-comparison
 	var dockerMismatches bool
@@ -964,4 +1048,50 @@ func relativeToRoot(root, path string) string {
 		return filepath.Clean(path)
 	}
 	return filepath.Clean(rel)
+}
+
+func promptForFixConfirmation(envFile string, count int) (bool, error) {
+	fmt.Fprintf(os.Stderr, "Add %d missing variable(s) to %s? [y/N]: ", count, envFile)
+	line, err := bufio.NewReader(os.Stdin).ReadString('\n')
+	if err != nil && err != io.EOF {
+		return false, err
+	}
+	response := strings.TrimSpace(strings.ToLower(line))
+	return response == "y" || response == "yes", nil
+}
+
+func applyMissingVarsFix(envFile string, vars []string) error {
+	if len(vars) == 0 {
+		return nil
+	}
+
+	originalContent, err := os.ReadFile(envFile)
+	if err != nil {
+		return err
+	}
+
+	info, err := os.Stat(envFile)
+	if err != nil {
+		return err
+	}
+
+	backupPath := envFile + ".backup"
+	if err := os.WriteFile(backupPath, originalContent, info.Mode().Perm()); err != nil {
+		return err
+	}
+
+	var builder strings.Builder
+	builder.Write(originalContent)
+	if len(originalContent) > 0 && originalContent[len(originalContent)-1] != '\n' {
+		builder.WriteByte('\n')
+	}
+	builder.WriteString("\n# Added by capture on ")
+	builder.WriteString(time.Now().Format("2006-01-02"))
+	builder.WriteByte('\n')
+	for _, varName := range vars {
+		builder.WriteString(varName)
+		builder.WriteString("=\n")
+	}
+
+	return os.WriteFile(envFile, []byte(builder.String()), info.Mode().Perm())
 }

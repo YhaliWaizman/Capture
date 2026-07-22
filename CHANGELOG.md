@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Features
 
+* **developer-experience:** add `--fix` mode to append missing env vars to `.env` with backup creation, optional confirmation bypass (`--yes`), and preview mode (`--dry-run`)
 * **developer-experience:** add `--watch` mode to continuously re-run scans on file changes with 500ms debounce, terminal clear between runs, and timestamped watch status messages
 
 ## [1.5.0](https://github.com/YhaliWaizman/Capture/compare/v1.4.0...v1.5.0) (2026-07-22)

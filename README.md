@@ -12,6 +12,7 @@ A static analysis CLI tool that identifies mismatches between environment variab
 - ⚡ Parallel source-file scanning with configurable workers (`--workers`)
 - ⚡ Incremental scanning with git-aware caching (`--incremental`, `.capture/cache.json`)
 - 👀 Watch mode with automatic re-scan on file changes (`--watch`)
+- 🛠️ Auto-fix missing env variables with backup support (`--fix`, `--dry-run`, `--yes`)
 - 🔄 Deterministic output for reliable CI/CD integration
 - ⚡ Memory-efficient streaming file processing
 - 🚫 Configurable directory ignore patterns
@@ -106,6 +107,15 @@ capture scan --dir ./project --env-file .env --watch
 
 Watch mode runs an initial scan, then re-runs automatically on changes with a 500ms debounce.
 
+### Auto-fix Missing Variables
+
+```bash
+capture scan --dir ./project --env-file .env --fix --yes
+```
+
+`--fix` appends missing variables to the first `--env-file` and creates `<env-file>.backup` before writing.
+Use `--dry-run` to preview changes without modifying files.
+
 ### With Configuration File
 
 ```bash
@@ -154,6 +164,9 @@ Dockerfile uses undeclared variables:
 - `--incremental` (optional): Only scan changed files using git change detection and cache results in `.capture/cache.json`
 - `--no-cache` (optional): Disable cache usage and force a full scan (useful with `--incremental`)
 - `--watch` (optional): Watch files and re-run scans automatically on change (500ms debounce)
+- `--fix` (optional): Add missing variables to the first `--env-file` with empty values (`KEY=`)
+- `--dry-run` (optional): Preview `--fix` changes without writing files (requires `--fix`)
+- `--yes` (optional): Skip confirmation prompt when using `--fix`
 - `--config` (optional): Path to config file. If not set, `capture` looks for `.capture.yaml`, then `.capture.yml`, then `.capture.json` in the current directory.
 
 ## Exit Codes
@@ -185,6 +198,9 @@ workers: 8
 incremental: true
 no_cache: false
 watch: false
+fix: false
+dry_run: false
+yes: false
 ```
 
 Command-line flags always override config file values.

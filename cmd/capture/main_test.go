@@ -741,6 +741,102 @@ func TestCLI_IncrementalScan_FallsBackWithoutGit(t *testing.T) {
 	}
 }
 
+func TestCLI_FixMode_AddsMissingVarsAndBackup(t *testing.T) {
+	binary := buildBinary(t)
+
+	tmpDir := t.TempDir()
+	envFile := filepath.Join(tmpDir, ".env")
+	srcFile := filepath.Join(tmpDir, "app.js")
+
+	initialEnv := "API_KEY=test\n"
+	if err := os.WriteFile(envFile, []byte(initialEnv), 0644); err != nil {
+		t.Fatalf("Failed to write .env file: %v", err)
+	}
+	if err := os.WriteFile(srcFile, []byte("console.log(process.env.API_KEY)\nconsole.log(process.env.REDIS_HOST)\nconsole.log(process.env.DATABASE_URL)\n"), 0644); err != nil {
+		t.Fatalf("Failed to write source file: %v", err)
+	}
+
+	cmd := exec.Command(binary, "scan", "--dir", tmpDir, "--env-file", envFile, "--fix", "--yes")
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("Expected fixed scan to succeed, got: %v\nStdout: %s\nStderr: %s", err, stdout.String(), stderr.String())
+	}
+
+	envAfterBytes, err := os.ReadFile(envFile)
+	if err != nil {
+		t.Fatalf("Failed to read updated .env file: %v", err)
+	}
+	envAfter := string(envAfterBytes)
+	if !strings.Contains(envAfter, "# Added by capture on ") {
+		t.Fatalf("Expected timestamp comment in updated env file, got:\n%s", envAfter)
+	}
+	if !strings.Contains(envAfter, "DATABASE_URL=\n") || !strings.Contains(envAfter, "REDIS_HOST=\n") {
+		t.Fatalf("Expected missing variables in updated env file, got:\n%s", envAfter)
+	}
+
+	backupBytes, err := os.ReadFile(envFile + ".backup")
+	if err != nil {
+		t.Fatalf("Expected backup file to exist: %v", err)
+	}
+	if string(backupBytes) != initialEnv {
+		t.Fatalf("Expected backup to preserve original env content.\nWant:\n%s\nGot:\n%s", initialEnv, string(backupBytes))
+	}
+
+	if !strings.Contains(stderr.String(), "Auto-fix: added 2 variable(s)") {
+		t.Fatalf("Expected auto-fix summary in stderr, got: %s", stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "No environment mismatches found.") {
+		t.Fatalf("Expected clean scan output after fix, got: %s", stdout.String())
+	}
+}
+
+func TestCLI_FixMode_DryRunDoesNotModifyEnv(t *testing.T) {
+	binary := buildBinary(t)
+
+	tmpDir := t.TempDir()
+	envFile := filepath.Join(tmpDir, ".env")
+	srcFile := filepath.Join(tmpDir, "app.js")
+
+	initialEnv := "API_KEY=test\n"
+	if err := os.WriteFile(envFile, []byte(initialEnv), 0644); err != nil {
+		t.Fatalf("Failed to write .env file: %v", err)
+	}
+	if err := os.WriteFile(srcFile, []byte("console.log(process.env.MISSING_VAR)\n"), 0644); err != nil {
+		t.Fatalf("Failed to write source file: %v", err)
+	}
+
+	cmd := exec.Command(binary, "scan", "--dir", tmpDir, "--env-file", envFile, "--fix", "--dry-run")
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	err := cmd.Run()
+	if exitErr, ok := err.(*exec.ExitError); ok {
+		if exitErr.ExitCode() != 1 {
+			t.Fatalf("Expected exit code 1 for dry-run with unresolved mismatch, got %d\nStdout: %s\nStderr: %s", exitErr.ExitCode(), stdout.String(), stderr.String())
+		}
+	} else if err == nil {
+		t.Fatal("Expected dry-run to keep mismatch exit code")
+	} else {
+		t.Fatalf("Unexpected command error: %v\nStdout: %s\nStderr: %s", err, stdout.String(), stderr.String())
+	}
+
+	envAfterBytes, readErr := os.ReadFile(envFile)
+	if readErr != nil {
+		t.Fatalf("Failed to read env file after dry-run: %v", readErr)
+	}
+	if string(envAfterBytes) != initialEnv {
+		t.Fatalf("Dry-run should not modify env file.\nWant:\n%s\nGot:\n%s", initialEnv, string(envAfterBytes))
+	}
+	if _, statErr := os.Stat(envFile + ".backup"); !os.IsNotExist(statErr) {
+		t.Fatalf("Dry-run should not create backup file, stat err: %v", statErr)
+	}
+	if !strings.Contains(stderr.String(), "Dry run: would add 1 missing variable(s)") {
+		t.Fatalf("Expected dry-run summary in stderr, got: %s", stderr.String())
+	}
+}
+
 func TestCLI_WatchMode_ReRunsOnChange(t *testing.T) {
 	binary := buildBinary(t)
 

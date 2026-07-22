@@ -82,6 +82,45 @@ func TestDetectorFactory_CreatePHPDetector(t *testing.T) {
 	}
 }
 
+func TestDetectorFactory_CreateJavaDetector(t *testing.T) {
+	factory := NewDetectorFactory()
+
+	detector := factory.Create(".java")
+	if detector == nil {
+		t.Error("Expected JVMDetector for .java extension, got nil")
+	}
+
+	if _, ok := detector.(*JVMDetector); !ok {
+		t.Error("Expected JVMDetector type for .java extension")
+	}
+}
+
+func TestDetectorFactory_CreateKotlinDetector(t *testing.T) {
+	factory := NewDetectorFactory()
+
+	detector := factory.Create(".kt")
+	if detector == nil {
+		t.Error("Expected JVMDetector for .kt extension, got nil")
+	}
+
+	if _, ok := detector.(*JVMDetector); !ok {
+		t.Error("Expected JVMDetector type for .kt extension")
+	}
+}
+
+func TestDetectorFactory_CreateKotlinScriptDetector(t *testing.T) {
+	factory := NewDetectorFactory()
+
+	detector := factory.Create(".kts")
+	if detector == nil {
+		t.Error("Expected JVMDetector for .kts extension, got nil")
+	}
+
+	if _, ok := detector.(*JVMDetector); !ok {
+		t.Error("Expected JVMDetector type for .kts extension")
+	}
+}
+
 func TestDetectorFactory_CreateUnsupportedExtension(t *testing.T) {
 	factory := NewDetectorFactory()
 

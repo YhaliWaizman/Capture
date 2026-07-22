@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Features
 
 * **detector:** add PHP language support (`$_ENV`, `$_SERVER`, `getenv`) for `.php` files
+* **detector:** add Java/Kotlin language support (`System.getenv`, `System.getenv().get`, `System.getenv()[...]`) for `.java`, `.kt`, and `.kts` files
 
 ## [1.1.1](https://github.com/YhaliWaizman/Capture/compare/v1.1.0...v1.1.1) (2026-03-15)
 

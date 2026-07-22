@@ -25,6 +25,8 @@ func (f *DetectorFactory) Create(extension string) types.LanguageDetector {
 		return NewRubyDetector()
 	case ".php":
 		return NewPHPDetector()
+	case ".java", ".kt", ".kts":
+		return NewJVMDetector()
 	default:
 		return nil
 	}

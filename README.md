@@ -4,7 +4,7 @@ A static analysis CLI tool that identifies mismatches between environment variab
 
 ## Features
 
-- 🔍 Detects environment variable usage in JavaScript, TypeScript, Go, Python, Ruby, and PHP
+- 🔍 Detects environment variable usage in JavaScript, TypeScript, Go, Python, Ruby, PHP, Java, and Kotlin
 - 🐳 Analyzes Dockerfiles for ENV/ARG declarations and variable usage
 - 🔄 Cross-checks variables between .env, Dockerfile, and source code
 - 🎯 Pattern-based detection without AST parsing for simplicity and speed
@@ -171,6 +171,8 @@ Command-line flags always override config file values.
 | Python     | `os.getenv("VAR")`, `os.environ["VAR"]`, `os.environ['VAR']` |
 | Ruby       | `ENV["VAR"]`, `ENV['VAR']`, `ENV.fetch("VAR")`, `ENV.fetch('VAR')` |
 | PHP        | `$_ENV["VAR"]`, `$_ENV['VAR']`, `$_SERVER["VAR"]`, `$_SERVER['VAR']`, `getenv("VAR")`, `getenv('VAR')` |
+| Java       | `System.getenv("VAR")`, `System.getenv().get("VAR")` |
+| Kotlin     | `System.getenv("VAR")`, `System.getenv()["VAR"]` |
 | Dockerfile | `ENV KEY=value`, `ARG KEY=default`, `$VAR`, `${VAR}` |
 
 ## Dockerfile Analysis

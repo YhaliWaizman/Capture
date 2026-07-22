@@ -37,6 +37,9 @@ func TestFileWalker_Walk(t *testing.T) {
 		"src/script.py":            "// Python file",
 		"src/config.rb":            "# Ruby file",
 		"src/config.php":           "<?php $key = $_ENV['API_KEY'];",
+		"src/App.java":             "class App { String v = System.getenv(\"API_KEY\"); }",
+		"src/app.kt":               "val key = System.getenv(\"API_KEY\")",
+		"src/build.kts":            "val key = System.getenv()[\"API_KEY\"]",
 		"src/components/button.js": "// Component file",
 		"src/components/button.ts": "// Component file",
 		"src/readme.md":            "# Markdown file",
@@ -65,10 +68,13 @@ func TestFileWalker_Walk(t *testing.T) {
 		// Sort for consistent comparison
 		sort.Strings(result)
 
-		// Expected files (should include .js, .ts, .go, .py, .rb, .php but not files in ignored dirs)
+		// Expected files (should include supported language extensions but not files in ignored dirs)
 		expected := []string{
+			filepath.Join(tmpDir, "src/App.java"),
 			filepath.Join(tmpDir, "src/app.js"),
+			filepath.Join(tmpDir, "src/app.kt"),
 			filepath.Join(tmpDir, "src/app.ts"),
+			filepath.Join(tmpDir, "src/build.kts"),
 			filepath.Join(tmpDir, "src/config.rb"),
 			filepath.Join(tmpDir, "src/config.php"),
 			filepath.Join(tmpDir, "src/components/button.js"),
@@ -100,7 +106,7 @@ func TestFileWalker_Walk(t *testing.T) {
 		}
 
 		// Verify only valid extensions are included
-		validExts := map[string]bool{".js": true, ".ts": true, ".go": true, ".py": true, ".rb": true, ".php": true}
+		validExts := map[string]bool{".js": true, ".ts": true, ".go": true, ".py": true, ".rb": true, ".php": true, ".java": true, ".kt": true, ".kts": true}
 		for _, file := range result {
 			ext := filepath.Ext(file)
 			if !validExts[ext] {
@@ -180,12 +186,15 @@ func TestFileWalker_Walk(t *testing.T) {
 	t.Run("Case-sensitive extension matching", func(t *testing.T) {
 		// Create files with uppercase extensions
 		upperFiles := map[string]string{
-			"src/test.JS":  "// Should not match",
-			"src/test.TS":  "// Should not match",
-			"src/test.GO":  "// Should not match",
-			"src/test.PY":  "// Should not match",
-			"src/test.RB":  "// Should not match",
-			"src/test.PHP": "// Should not match",
+			"src/test.JS":   "// Should not match",
+			"src/test.TS":   "// Should not match",
+			"src/test.GO":   "// Should not match",
+			"src/test.PY":   "// Should not match",
+			"src/test.RB":   "// Should not match",
+			"src/test.PHP":  "// Should not match",
+			"src/test.JAVA": "// Should not match",
+			"src/test.KT":   "// Should not match",
+			"src/test.KTS":  "// Should not match",
 		}
 
 		for path, content := range upperFiles {
@@ -205,7 +214,7 @@ func TestFileWalker_Walk(t *testing.T) {
 		// Verify uppercase extensions are not included
 		for _, file := range result {
 			ext := filepath.Ext(file)
-			if ext == ".JS" || ext == ".TS" || ext == ".GO" || ext == ".PY" || ext == ".RB" || ext == ".PHP" {
+			if ext == ".JS" || ext == ".TS" || ext == ".GO" || ext == ".PY" || ext == ".RB" || ext == ".PHP" || ext == ".JAVA" || ext == ".KT" || ext == ".KTS" {
 				t.Errorf("File with uppercase extension should not be included: %s", file)
 			}
 		}

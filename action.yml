@@ -1,0 +1,46 @@
+name: "Capture Environment Variable Checker"
+description: "Check for environment variable mismatches in your repository"
+author: "Yhali Waizman"
+
+inputs:
+  root:
+    description: "Root directory to scan"
+    required: false
+    default: "."
+  env-file:
+    description: "Path to .env file"
+    required: true
+  format:
+    description: "Output format (text, json, sarif)"
+    required: false
+    default: "text"
+  ignore:
+    description: "Comma-separated directories to ignore"
+    required: false
+    default: ""
+  version:
+    description: "Capture version to install (for example: v2.0.0, v2, latest)"
+    required: false
+    default: "latest"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version-file: go.mod
+
+    - name: Install capture
+      shell: bash
+      run: go install github.com/yhaliwaizman/capture/cmd/capture@${{ inputs.version }}
+
+    - name: Run capture scan
+      shell: bash
+      run: |
+        set -euo pipefail
+        cmd=(capture scan --dir "${{ inputs.root }}" --env-file "${{ inputs.env-file }}" --format "${{ inputs.format }}")
+        if [ -n "${{ inputs.ignore }}" ]; then
+          cmd+=(--ignore "${{ inputs.ignore }}")
+        fi
+        "${cmd[@]}"

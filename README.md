@@ -315,6 +315,23 @@ make clean
 
 The tool is designed for CI/CD pipelines with deterministic output and standard exit codes:
 
+**Official GitHub Action:**
+```yaml
+name: Check Environment Variables
+on: [push, pull_request]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: YhaliWaizman/Capture@v2
+        with:
+          root: .
+          env-file: .env
+          format: text
+```
+
 **Text Format (Human-Readable):**
 ```yaml
 # GitHub Actions example

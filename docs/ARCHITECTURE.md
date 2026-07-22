@@ -46,6 +46,7 @@ Capture is a CLI tool for detecting environment variable mismatches between `.en
        │      │ • Go         │        │
        │      │ • Python     │        │
        │      │ • Ruby       │        │
+       │      │ • PHP        │        │
        │      └──────┬───────┘        │
        │             │                │
        └─────────────┼────────────────┘
@@ -107,7 +108,7 @@ Parses `.env` files and extracts variable names.
 Recursively traverses directories to find source files.
 
 **Features:**
-- Filters by extension (`.js`, `.ts`, `.go`, `.py`, `.rb`)
+- Filters by extension (`.js`, `.ts`, `.go`, `.py`, `.rb`, `.php`)
 - Respects ignore patterns
 - Skips symbolic links
 - Detects Dockerfiles
@@ -124,6 +125,7 @@ Language-specific detectors for finding environment variable usage.
 - `GoDetector` - Go (`os.Getenv("VAR")`)
 - `PythonDetector` - Python (`os.getenv("VAR")`)
 - `RubyDetector` - Ruby (`ENV["VAR"]`, `ENV.fetch("VAR")`)
+- `PHPDetector` - PHP (`$_ENV["VAR"]`, `$_SERVER["VAR"]`, `getenv("VAR")`)
 
 **Pattern matching:**
 - Regex-based detection

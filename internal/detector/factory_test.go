@@ -69,6 +69,19 @@ func TestDetectorFactory_CreateRubyDetector(t *testing.T) {
 	}
 }
 
+func TestDetectorFactory_CreatePHPDetector(t *testing.T) {
+	factory := NewDetectorFactory()
+
+	detector := factory.Create(".php")
+	if detector == nil {
+		t.Error("Expected PHPDetector for .php extension, got nil")
+	}
+
+	if _, ok := detector.(*PHPDetector); !ok {
+		t.Error("Expected PHPDetector type for .php extension")
+	}
+}
+
 func TestDetectorFactory_CreateUnsupportedExtension(t *testing.T) {
 	factory := NewDetectorFactory()
 

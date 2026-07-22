@@ -39,7 +39,7 @@ declared in .env files, Dockerfiles, and those referenced in source code.
 The tool will:
   - Parse .env file for declared variables
   - Analyze Dockerfiles for ENV/ARG declarations
-  - Detect variable usage in source code (JS, TS, Go, Python, Ruby)
+  - Detect variable usage in source code (JS, TS, Go, Python, Ruby, PHP)
   - Report mismatches and inconsistencies`,
 	Example: `  capture scan --dir ./project --env-file .env
   capture scan --dir . --env-file .env --env-file .env.local --ignore vendor,tmp

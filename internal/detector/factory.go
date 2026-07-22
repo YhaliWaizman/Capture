@@ -23,6 +23,8 @@ func (f *DetectorFactory) Create(extension string) types.LanguageDetector {
 		return NewPythonDetector()
 	case ".rb":
 		return NewRubyDetector()
+	case ".php":
+		return NewPHPDetector()
 	default:
 		return nil
 	}

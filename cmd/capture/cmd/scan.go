@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/spf13/cobra"
 	composeanalyzer "github.com/yhaliwaizman/capture/internal/compose"
@@ -27,6 +29,7 @@ type ScanConfig struct {
 	Ignore   []string
 	Format   string
 	Config   string
+	Workers  int
 }
 
 var scanConfig ScanConfig
@@ -57,6 +60,7 @@ func init() {
 	scanCmd.Flags().StringSliceVar(&scanConfig.Ignore, "ignore", []string{}, "Comma-separated list of directories to ignore")
 	scanCmd.Flags().StringVar(&scanConfig.Format, "format", "text", "Output format: text, json, or sarif")
 	scanCmd.Flags().StringVar(&scanConfig.Config, "config", "", "Path to config file (.capture.yaml/.yml/.json)")
+	scanCmd.Flags().IntVar(&scanConfig.Workers, "workers", runtime.NumCPU(), "Number of parallel workers for source file scanning")
 }
 
 func runScan(cmd *cobra.Command, args []string) error {
@@ -70,6 +74,10 @@ func runScan(cmd *cobra.Command, args []string) error {
 	if config.Format != "text" && config.Format != "json" && config.Format != "sarif" {
 		fmt.Fprintf(os.Stderr, "Error: invalid format '%s'. Must be 'text', 'json', or 'sarif'\n", config.Format)
 		return NewExitError(fmt.Errorf("invalid format"), 2)
+	}
+	if config.Workers < 1 {
+		fmt.Fprintf(os.Stderr, "Error: invalid workers value '%d'. Must be >= 1\n", config.Workers)
+		return NewExitError(fmt.Errorf("invalid workers"), 2)
 	}
 
 	// Validate directory exists
@@ -105,6 +113,7 @@ type scanFileConfig struct {
 	EnvFiles []string `yaml:"env_files" json:"env_files"`
 	Ignore   []string `yaml:"ignore" json:"ignore"`
 	Format   string   `yaml:"format" json:"format"`
+	Workers  int      `yaml:"workers" json:"workers"`
 }
 
 func resolveScanConfig(cmd *cobra.Command) (ScanConfig, error) {
@@ -113,6 +122,7 @@ func resolveScanConfig(cmd *cobra.Command) (ScanConfig, error) {
 		EnvFiles: []string{".env"},
 		Ignore:   []string{},
 		Format:   "text",
+		Workers:  runtime.NumCPU(),
 	}
 
 	configPath, err := findConfigPath(cmd)
@@ -137,6 +147,9 @@ func resolveScanConfig(cmd *cobra.Command) (ScanConfig, error) {
 		if fileConfig.Format != "" {
 			config.Format = fileConfig.Format
 		}
+		if fileConfig.Workers > 0 {
+			config.Workers = fileConfig.Workers
+		}
 	}
 
 	if cmd.Flags().Changed("dir") {
@@ -153,6 +166,9 @@ func resolveScanConfig(cmd *cobra.Command) (ScanConfig, error) {
 	}
 	if cmd.Flags().Changed("config") {
 		config.Config = scanConfig.Config
+	}
+	if cmd.Flags().Changed("workers") {
+		config.Workers = scanConfig.Workers
 	}
 
 	return config, nil
@@ -345,27 +361,53 @@ func executeScan(config *ScanConfig) int {
 	// Step 3: Detect environment variable usage in source files
 	used := make(map[string]bool)
 	allLocations := make(map[string][]types.Location)
-
-	for _, filePath := range sourceFiles {
-		ext := filepath.Ext(filePath)
-		detector := detectorFactory.Create(ext)
-		if detector == nil {
-			continue
+	type detectResult struct {
+		filePath  string
+		locations map[string][]types.Location
+		err       error
+	}
+	jobs := make(chan string)
+	results := make(chan detectResult, len(sourceFiles))
+	workers := config.Workers
+	if workers > len(sourceFiles) && len(sourceFiles) > 0 {
+		workers = len(sourceFiles)
+	}
+	var wg sync.WaitGroup
+	for i := 0; i < workers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for filePath := range jobs {
+				ext := filepath.Ext(filePath)
+				d := detectorFactory.Create(ext)
+				if d == nil {
+					continue
+				}
+				locations, err := d.Detect(filePath)
+				results <- detectResult{filePath: filePath, locations: locations, err: err}
+			}
+		}()
+	}
+	go func() {
+		for _, filePath := range sourceFiles {
+			jobs <- filePath
 		}
-
-		locations, err := detector.Detect(filePath)
-		if err != nil {
+		close(jobs)
+		wg.Wait()
+		close(results)
+	}()
+	for result := range results {
+		if result.err != nil {
 			// Soft error: log warning but continue processing
-			fmt.Fprintf(os.Stderr, "Warning: failed to process file %s: %v\n", filePath, err)
+			fmt.Fprintf(os.Stderr, "Warning: failed to process file %s: %v\n", result.filePath, result.err)
 			continue
 		}
-
-		// Merge locations into allLocations and mark variables as used
-		for varName, locs := range locations {
+		for varName, locs := range result.locations {
 			used[varName] = true
 			allLocations[varName] = append(allLocations[varName], locs...)
 		}
 	}
+	sortLocationMap(allLocations)
 
 	// Step 4: Compare declared vs used variables
 	diffResult := diffEngine.Compare(declared, used)
@@ -582,4 +624,15 @@ func sortedKeys(m map[string]types.Location) []string {
 	}
 	sort.Strings(keys)
 	return keys
+}
+
+func sortLocationMap(locations map[string][]types.Location) {
+	for varName := range locations {
+		sort.Slice(locations[varName], func(i, j int) bool {
+			if locations[varName][i].FilePath == locations[varName][j].FilePath {
+				return locations[varName][i].LineNumber < locations[varName][j].LineNumber
+			}
+			return locations[varName][i].FilePath < locations[varName][j].FilePath
+		})
+	}
 }

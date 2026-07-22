@@ -556,3 +556,54 @@ func TestCLI_DeterministicOutput(t *testing.T) {
 		t.Errorf("Output is not deterministic:\nRun 1:\n%s\n\nRun 2:\n%s", outputs[0], outputs[1])
 	}
 }
+
+func TestCLI_WorkersFlag_DeterministicParity(t *testing.T) {
+	binary := buildBinary(t)
+
+	tmpDir := t.TempDir()
+	envFile := filepath.Join(tmpDir, ".env")
+	if err := os.WriteFile(envFile, []byte("DECLARED_ONLY=1\n"), 0644); err != nil {
+		t.Fatalf("Failed to write .env file: %v", err)
+	}
+
+	sourceFiles := map[string]string{
+		"app.js":      "console.log(process.env.MISSING_C)\nconsole.log(process.env.MISSING_A)\n",
+		"main.go":     "package main\nimport \"os\"\nfunc main(){_ = os.Getenv(\"MISSING_B\")}\n",
+		"service.py":  "import os\nprint(os.getenv(\"MISSING_A\"))\n",
+		"worker.rb":   "puts ENV['MISSING_B']\n",
+		"feature.php": "<?php echo getenv('MISSING_C');\n",
+	}
+	for name, content := range sourceFiles {
+		if err := os.WriteFile(filepath.Join(tmpDir, name), []byte(content), 0644); err != nil {
+			t.Fatalf("Failed to write source file %s: %v", name, err)
+		}
+	}
+
+	runScan := func(workers string) (string, int, string) {
+		cmd := exec.Command(binary, "scan", "--dir", tmpDir, "--env-file", envFile, "--workers", workers)
+		var stdout, stderr bytes.Buffer
+		cmd.Stdout = &stdout
+		cmd.Stderr = &stderr
+		err := cmd.Run()
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			return stdout.String(), exitErr.ExitCode(), stderr.String()
+		}
+		if err != nil {
+			t.Fatalf("Unexpected command error with workers=%s: %v", workers, err)
+		}
+		return stdout.String(), 0, stderr.String()
+	}
+
+	out1, code1, err1 := runScan("1")
+	out4, code4, err4 := runScan("4")
+
+	if code1 != 1 || code4 != 1 {
+		t.Fatalf("Expected exit code 1 for mismatches, got workers=1:%d workers=4:%d", code1, code4)
+	}
+	if err1 != "" || err4 != "" {
+		t.Fatalf("Expected empty stderr, got workers=1:%q workers=4:%q", err1, err4)
+	}
+	if out1 != out4 {
+		t.Fatalf("Expected identical output across worker counts.\nworkers=1:\n%s\nworkers=4:\n%s", out1, out4)
+	}
+}

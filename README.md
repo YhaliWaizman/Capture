@@ -9,6 +9,7 @@ A static analysis CLI tool that identifies mismatches between environment variab
 - 🧩 Parses Docker Compose files (`docker-compose*.yml`, `compose.yml`) for environment declarations, substitutions, and `env_file` references
 - 🔄 Cross-checks variables between .env, Dockerfile, and source code
 - 🎯 Pattern-based detection without AST parsing for simplicity and speed
+- ⚡ Parallel source-file scanning with configurable workers (`--workers`)
 - 🔄 Deterministic output for reliable CI/CD integration
 - ⚡ Memory-efficient streaming file processing
 - 🚫 Configurable directory ignore patterns
@@ -131,6 +132,7 @@ Dockerfile uses undeclared variables:
 - `--env-file` (required, repeatable): Path to an env file. When repeated, later files override earlier ones for declaration source.
 - `--ignore` (optional): Comma-separated list of directories to ignore
 - `--format` (optional): Output format - `text` (default), `json`, or `sarif`
+- `--workers` (optional): Number of parallel workers for source file scanning (default: CPU count; set `1` for sequential)
 - `--config` (optional): Path to config file. If not set, `capture` looks for `.capture.yaml`, then `.capture.yml`, then `.capture.json` in the current directory.
 
 ## Exit Codes
@@ -158,6 +160,7 @@ env_files:
 ignore:
   - node_modules
 format: text
+workers: 8
 ```
 
 Command-line flags always override config file values.

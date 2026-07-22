@@ -8,7 +8,7 @@ import (
 
 var (
 	// Version information (can be set via ldflags during build)
-	version = "1.0.0"
+	version = "1.5.0"
 	commit  = "dev"
 	date    = "unknown"
 )

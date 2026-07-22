@@ -91,6 +91,11 @@ func (r *ReporterImpl) ReportJSON(data types.ReportData) error {
 		dockerDeclaresUnused = []string{}
 	}
 
+	envDeclaresUnusedCompose := data.EnvDeclaresUnusedCompose
+	if envDeclaresUnusedCompose == nil {
+		envDeclaresUnusedCompose = []string{}
+	}
+
 	// Build missing variables with all locations
 	missing := make([]types.MissingVariable, 0, len(data.Missing))
 	missingVars := make([]string, 0, len(data.Missing))
@@ -152,10 +157,51 @@ func (r *ReporterImpl) ReportJSON(data types.ReportData) error {
 		})
 	}
 
+	composeDeclaresNotInEnv := make([]types.ComposeVariableIssue, 0, len(data.ComposeDeclaresNotInEnv))
+	composeDeclareKeys := make([]string, 0, len(data.ComposeDeclaresNotInEnv))
+	for v := range data.ComposeDeclaresNotInEnv {
+		composeDeclareKeys = append(composeDeclareKeys, v)
+	}
+	sort.Strings(composeDeclareKeys)
+	for _, varName := range composeDeclareKeys {
+		composeDeclaresNotInEnv = append(composeDeclaresNotInEnv, types.ComposeVariableIssue{
+			Variable: varName,
+			Location: data.ComposeDeclaresNotInEnv[varName],
+		})
+	}
+
+	composeUsesUndefined := make([]types.ComposeVariableIssue, 0, len(data.ComposeUsesUndefined))
+	composeUseKeys := make([]string, 0, len(data.ComposeUsesUndefined))
+	for v := range data.ComposeUsesUndefined {
+		composeUseKeys = append(composeUseKeys, v)
+	}
+	sort.Strings(composeUseKeys)
+	for _, varName := range composeUseKeys {
+		composeUsesUndefined = append(composeUsesUndefined, types.ComposeVariableIssue{
+			Variable: varName,
+			Location: data.ComposeUsesUndefined[varName],
+		})
+	}
+
+	composeMissingEnvFiles := make([]types.ComposeEnvFileIssue, 0, len(data.ComposeMissingEnvFiles))
+	composeMissingPaths := make([]string, 0, len(data.ComposeMissingEnvFiles))
+	for p := range data.ComposeMissingEnvFiles {
+		composeMissingPaths = append(composeMissingPaths, p)
+	}
+	sort.Strings(composeMissingPaths)
+	for _, path := range composeMissingPaths {
+		composeMissingEnvFiles = append(composeMissingEnvFiles, types.ComposeEnvFileIssue{
+			Path:     path,
+			Location: data.ComposeMissingEnvFiles[path],
+		})
+	}
+
 	// Calculate total mismatches
 	mismatchesFound := len(unused) + len(missing) +
 		len(codeUsesNotInDocker) + len(dockerDeclaresUnused) +
-		len(dockerUsesUndeclared)
+		len(dockerUsesUndeclared) +
+		len(composeDeclaresNotInEnv) + len(composeUsesUndefined) +
+		len(envDeclaresUnusedCompose) + len(composeMissingEnvFiles)
 
 	// Build JSON output
 	output := types.JSONOutput{
@@ -172,6 +218,12 @@ func (r *ReporterImpl) ReportJSON(data types.ReportData) error {
 			CodeUsesNotInDocker:  codeUsesNotInDocker,
 			DockerDeclaresUnused: dockerDeclaresUnused,
 			DockerUsesUndeclared: dockerUsesUndeclared,
+		},
+		ComposeIssues: types.ComposeIssues{
+			ComposeDeclaresNotInEnv:  composeDeclaresNotInEnv,
+			ComposeUsesUndefined:     composeUsesUndefined,
+			EnvDeclaresUnusedCompose: envDeclaresUnusedCompose,
+			ComposeMissingEnvFiles:   composeMissingEnvFiles,
 		},
 	}
 

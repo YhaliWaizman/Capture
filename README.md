@@ -6,6 +6,7 @@ A static analysis CLI tool that identifies mismatches between environment variab
 
 - 🔍 Detects environment variable usage in JavaScript, TypeScript, Go, Python, Ruby, PHP, Java, and Kotlin
 - 🐳 Analyzes Dockerfiles for ENV/ARG declarations and variable usage
+- 🧩 Parses Docker Compose files (`docker-compose*.yml`, `compose.yml`) for environment declarations, substitutions, and `env_file` references
 - 🔄 Cross-checks variables between .env, Dockerfile, and source code
 - 🎯 Pattern-based detection without AST parsing for simplicity and speed
 - 🔄 Deterministic output for reliable CI/CD integration
@@ -175,14 +176,18 @@ Command-line flags always override config file values.
 | Kotlin     | `System.getenv("VAR")`, `System.getenv()["VAR"]` |
 | Dockerfile | `ENV KEY=value`, `ARG KEY=default`, `$VAR`, `${VAR}` |
 
-## Dockerfile Analysis
+## Dockerfile and Docker Compose Analysis
 
-The tool automatically detects and analyzes Dockerfiles in your project:
+The tool automatically detects and analyzes Dockerfiles and Docker Compose files in your project:
 
 - **Detected files**: `Dockerfile`, `Dockerfile.*`, `*.dockerfile`
 - **Declarations**: Extracts `ENV` and `ARG` instructions
 - **Usage**: Detects `$VAR` and `${VAR}` references in RUN, CMD, etc.
 - **Cross-checks**: Compares Dockerfile variables with .env and source code
+- **Compose files**: Detects `docker-compose.yml`, `docker-compose.yaml`, `docker-compose.*.yml`, `compose.yml`, `compose.yaml`
+- **Compose declarations**: Extracts service `environment` entries from list and map syntax
+- **Compose substitutions**: Detects `${VAR}` and `${VAR:-default}` patterns in compose values
+- **Compose env_file**: Detects missing `env_file` references
 
 ### Dockerfile Patterns
 

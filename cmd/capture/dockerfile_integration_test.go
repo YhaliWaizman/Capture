@@ -205,3 +205,65 @@ RUN echo "$KEY1 $KEY2 $KEY3"
 		t.Error("Expected KEY2 and KEY3 to be detected from line continuation")
 	}
 }
+
+func TestCLI_DockerComposeIntegration(t *testing.T) {
+	binary := buildBinary(t)
+
+	tmpDir := t.TempDir()
+	envFile := filepath.Join(tmpDir, ".env")
+	composeFile := filepath.Join(tmpDir, "docker-compose.yml")
+
+	envContent := `API_KEY=secret
+UNUSED_IN_COMPOSE=value
+`
+	if err := os.WriteFile(envFile, []byte(envContent), 0644); err != nil {
+		t.Fatalf("Failed to write .env file: %v", err)
+	}
+
+	composeContent := `services:
+  app:
+    image: myapp:${VERSION}
+    environment:
+      - API_KEY=${API_KEY}
+      - REDIS_URL=redis://localhost
+    env_file:
+      - .env.missing
+`
+	if err := os.WriteFile(composeFile, []byte(composeContent), 0644); err != nil {
+		t.Fatalf("Failed to write compose file: %v", err)
+	}
+
+	cmd := exec.Command(binary, "scan", "--dir", tmpDir, "--env-file", envFile)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	err := cmd.Run()
+
+	if exitErr, ok := err.(*exec.ExitError); ok {
+		if exitErr.ExitCode() != 1 {
+			t.Errorf("Expected exit code 1, got %d\nStdout: %s\nStderr: %s",
+				exitErr.ExitCode(), stdout.String(), stderr.String())
+		}
+	} else if err == nil {
+		t.Error("Expected exit code 1, got 0")
+	}
+
+	output := stdout.String()
+
+	if !strings.Contains(output, "Docker Compose issues:") {
+		t.Error("Expected Docker Compose issues section")
+	}
+	if !strings.Contains(output, "REDIS_URL") {
+		t.Error("Expected REDIS_URL in compose declare mismatch section")
+	}
+	if !strings.Contains(output, "VERSION") {
+		t.Error("Expected VERSION in compose undefined variables section")
+	}
+	if !strings.Contains(output, "UNUSED_IN_COMPOSE") {
+		t.Error("Expected UNUSED_IN_COMPOSE in env-unused-in-compose section")
+	}
+	if !strings.Contains(output, ".env.missing") {
+		t.Error("Expected missing env_file reference to be reported")
+	}
+}

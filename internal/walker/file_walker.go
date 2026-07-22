@@ -3,6 +3,7 @@ package walker
 import (
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // FileWalkerImpl implements the FileWalker interface
@@ -69,6 +70,17 @@ func (w *FileWalkerImpl) Walk(rootDir string, ignoreDirs []string) ([]string, er
 		if baseName == "Dockerfile" ||
 			filepath.Ext(baseName) == ".dockerfile" ||
 			(len(baseName) > 10 && baseName[:10] == "Dockerfile") {
+			files = append(files, path)
+		}
+
+		// Check if file is a Docker Compose file
+		// Matches: docker-compose.yml, docker-compose.yaml, docker-compose.*.yml, compose.yml, compose.yaml
+		if baseName == "docker-compose.yml" ||
+			baseName == "docker-compose.yaml" ||
+			baseName == "compose.yml" ||
+			baseName == "compose.yaml" ||
+			(strings.HasPrefix(baseName, "docker-compose.") &&
+				(strings.HasSuffix(baseName, ".yml") || strings.HasSuffix(baseName, ".yaml"))) {
 			files = append(files, path)
 		}
 

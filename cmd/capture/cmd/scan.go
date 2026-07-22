@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+	composeanalyzer "github.com/yhaliwaizman/capture/internal/compose"
 	"github.com/yhaliwaizman/capture/internal/detector"
 	"github.com/yhaliwaizman/capture/internal/diff"
 	"github.com/yhaliwaizman/capture/internal/dockerfile"
@@ -247,8 +248,9 @@ func executeScan(config *ScanConfig) int {
 		return 2
 	}
 
-	// Step 2.5: Separate Dockerfiles from source files
+	// Step 2.5: Separate Dockerfiles and Compose files from source files
 	var dockerfiles []string
+	var composeFiles []string
 	var sourceFiles []string
 
 	for _, filePath := range files {
@@ -256,9 +258,17 @@ func executeScan(config *ScanConfig) int {
 		isDockerfile := baseName == "Dockerfile" ||
 			filepath.Ext(baseName) == ".dockerfile" ||
 			strings.HasPrefix(baseName, "Dockerfile")
+		isComposeFile := baseName == "docker-compose.yml" ||
+			baseName == "docker-compose.yaml" ||
+			baseName == "compose.yml" ||
+			baseName == "compose.yaml" ||
+			(strings.HasPrefix(baseName, "docker-compose.") &&
+				(strings.HasSuffix(baseName, ".yml") || strings.HasSuffix(baseName, ".yaml")))
 
 		if isDockerfile {
 			dockerfiles = append(dockerfiles, filePath)
+		} else if isComposeFile {
+			composeFiles = append(composeFiles, filePath)
 		} else {
 			sourceFiles = append(sourceFiles, filePath)
 		}
@@ -284,6 +294,51 @@ func executeScan(config *ScanConfig) int {
 		// Merge usage locations
 		for varName, locs := range result.Used {
 			dockerUsed[varName] = append(dockerUsed[varName], locs...)
+		}
+	}
+
+	// Step 2.7: Analyze Docker Compose files
+	composeAnalyzer := composeanalyzer.NewComposeAnalyzer()
+	composeDeclared := make(map[string]types.Location)
+	composeDeclaredSet := make(map[string]bool)
+	composeUsed := make(map[string][]types.Location)
+	composeMissingEnvFiles := make(map[string]types.Location)
+
+	for _, composeFilePath := range composeFiles {
+		result, err := composeAnalyzer.Analyze(composeFilePath)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to analyze %s: %v\n", composeFilePath, err)
+			continue
+		}
+
+		for varName, loc := range result.Declared {
+			composeDeclaredSet[varName] = true
+			if _, exists := composeDeclared[varName]; !exists {
+				composeDeclared[varName] = loc
+			}
+		}
+
+		for varName, locs := range result.Used {
+			composeUsed[varName] = append(composeUsed[varName], locs...)
+		}
+
+		for envFilePath, loc := range result.MissingEnvFiles {
+			if _, exists := composeMissingEnvFiles[envFilePath]; !exists {
+				composeMissingEnvFiles[envFilePath] = loc
+			}
+		}
+
+		for envFilePath, loc := range result.EnvFiles {
+			parsedDeclared, err := envParser.Parse(envFilePath)
+			if err != nil {
+				continue
+			}
+			for varName := range parsedDeclared {
+				composeDeclaredSet[varName] = true
+				if _, exists := composeDeclared[varName]; !exists {
+					composeDeclared[varName] = loc
+				}
+			}
 		}
 	}
 
@@ -356,18 +411,67 @@ func executeScan(config *ScanConfig) int {
 		dockerMismatches = true
 	}
 
+	// Step 4.6: Docker Compose cross-comparison
+	var composeMismatches bool
+
+	composeDeclaresNotInEnv := make(map[string]types.Location)
+	if len(composeFiles) > 0 {
+		for varName, loc := range composeDeclared {
+			if !declared[varName] {
+				composeDeclaresNotInEnv[varName] = loc
+			}
+		}
+	}
+	if len(composeDeclaresNotInEnv) > 0 {
+		composeMismatches = true
+	}
+
+	composeUsesUndefined := make(map[string]types.Location)
+	if len(composeFiles) > 0 {
+		for varName, locs := range composeUsed {
+			if composeDeclaredSet[varName] || dockerDeclared[varName] || declared[varName] || len(locs) == 0 {
+				continue
+			}
+			composeUsesUndefined[varName] = locs[0]
+		}
+	}
+	if len(composeUsesUndefined) > 0 {
+		composeMismatches = true
+	}
+
+	var envDeclaresUnusedCompose []string
+	if len(composeFiles) > 0 {
+		for varName := range declared {
+			if !composeDeclaredSet[varName] && len(composeUsed[varName]) == 0 {
+				envDeclaresUnusedCompose = append(envDeclaresUnusedCompose, varName)
+			}
+		}
+		sort.Strings(envDeclaresUnusedCompose)
+	}
+	if len(envDeclaresUnusedCompose) > 0 {
+		composeMismatches = true
+	}
+
+	if len(composeFiles) > 0 && len(composeMissingEnvFiles) > 0 {
+		composeMismatches = true
+	}
+
 	// Step 5: Prepare report data with first location for each missing variable
 	reportData := types.ReportData{
-		Unused:               diffResult.Unused,
-		Missing:              make(map[string]types.Location),
-		AllLocations:         allLocations,
-		DeclaredSources:      declaredSources,
-		FilesScanned:         len(sourceFiles) + len(dockerfiles),
-		VariablesDeclared:    len(declared),
-		VariablesUsed:        len(used),
-		CodeUsesNotInDocker:  make(map[string][]types.Location),
-		DockerDeclaresUnused: dockerDeclaredNotUsed,
-		DockerUsesUndeclared: dockerUsedUndeclared,
+		Unused:                   diffResult.Unused,
+		Missing:                  make(map[string]types.Location),
+		AllLocations:             allLocations,
+		DeclaredSources:          declaredSources,
+		FilesScanned:             len(sourceFiles) + len(dockerfiles) + len(composeFiles),
+		VariablesDeclared:        len(declared),
+		VariablesUsed:            len(used),
+		CodeUsesNotInDocker:      make(map[string][]types.Location),
+		DockerDeclaresUnused:     dockerDeclaredNotUsed,
+		DockerUsesUndeclared:     dockerUsedUndeclared,
+		ComposeDeclaresNotInEnv:  composeDeclaresNotInEnv,
+		ComposeUsesUndefined:     composeUsesUndefined,
+		EnvDeclaresUnusedCompose: envDeclaresUnusedCompose,
+		ComposeMissingEnvFiles:   composeMissingEnvFiles,
 	}
 
 	for _, varName := range diffResult.Missing {
@@ -423,11 +527,59 @@ func executeScan(config *ScanConfig) int {
 				fmt.Fprintf(os.Stdout, "- %s (%s:%d)\n", varName, location.FilePath, location.LineNumber)
 			}
 		}
+
+		if len(composeFiles) > 0 && (len(composeDeclaresNotInEnv) > 0 || len(composeUsesUndefined) > 0 || len(envDeclaresUnusedCompose) > 0 || len(composeMissingEnvFiles) > 0) {
+			fmt.Fprintln(os.Stdout, "\nDocker Compose issues:")
+		}
+
+		if len(composeFiles) > 0 && len(composeDeclaresNotInEnv) > 0 {
+			fmt.Fprintln(os.Stdout, "")
+			fmt.Fprintln(os.Stdout, "compose files declare but not in .env:")
+			for _, varName := range sortedKeys(composeDeclaresNotInEnv) {
+				location := composeDeclaresNotInEnv[varName]
+				fmt.Fprintf(os.Stdout, "- %s (%s:%d)\n", varName, location.FilePath, location.LineNumber)
+			}
+		}
+
+		if len(composeFiles) > 0 && len(composeUsesUndefined) > 0 {
+			fmt.Fprintln(os.Stdout, "")
+			fmt.Fprintln(os.Stdout, "compose files use undefined variables:")
+			for _, varName := range sortedKeys(composeUsesUndefined) {
+				location := composeUsesUndefined[varName]
+				fmt.Fprintf(os.Stdout, "- %s (%s:%d)\n", varName, location.FilePath, location.LineNumber)
+			}
+		}
+
+		if len(composeFiles) > 0 && len(envDeclaresUnusedCompose) > 0 {
+			fmt.Fprintln(os.Stdout, "")
+			fmt.Fprintln(os.Stdout, ".env declares but not used in compose:")
+			for _, varName := range envDeclaresUnusedCompose {
+				fmt.Fprintf(os.Stdout, "- %s\n", varName)
+			}
+		}
+
+		if len(composeFiles) > 0 && len(composeMissingEnvFiles) > 0 {
+			fmt.Fprintln(os.Stdout, "")
+			fmt.Fprintln(os.Stdout, "compose files reference missing env_file entries:")
+			for _, envFilePath := range sortedKeys(composeMissingEnvFiles) {
+				location := composeMissingEnvFiles[envFilePath]
+				fmt.Fprintf(os.Stdout, "- %s (%s:%d)\n", envFilePath, location.FilePath, location.LineNumber)
+			}
+		}
 	}
 
 	// Determine exit code
-	if len(diffResult.Unused) > 0 || len(diffResult.Missing) > 0 || dockerMismatches {
+	if len(diffResult.Unused) > 0 || len(diffResult.Missing) > 0 || dockerMismatches || composeMismatches {
 		return 1 // Mismatches found
 	}
 	return 0 // No mismatches
+}
+
+func sortedKeys(m map[string]types.Location) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
 }

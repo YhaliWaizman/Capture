@@ -17,14 +17,18 @@ type ReportData struct {
 	Unused  []string            // Variables declared but not used
 	Missing map[string]Location // Variables used but not declared, mapped to first location
 	// Additional data for JSON output
-	AllLocations         map[string][]Location // All locations for each variable
-	DeclaredSources      map[string]string     // Variable -> declaring env file (last file wins)
-	FilesScanned         int
-	VariablesDeclared    int
-	VariablesUsed        int
-	CodeUsesNotInDocker  map[string][]Location
-	DockerDeclaresUnused []string
-	DockerUsesUndeclared map[string]Location
+	AllLocations             map[string][]Location // All locations for each variable
+	DeclaredSources          map[string]string     // Variable -> declaring env file (last file wins)
+	FilesScanned             int
+	VariablesDeclared        int
+	VariablesUsed            int
+	CodeUsesNotInDocker      map[string][]Location
+	DockerDeclaresUnused     []string
+	DockerUsesUndeclared     map[string]Location
+	ComposeDeclaresNotInEnv  map[string]Location
+	ComposeUsesUndefined     map[string]Location
+	EnvDeclaresUnusedCompose []string
+	ComposeMissingEnvFiles   map[string]Location
 }
 
 // JSONOutput represents the complete JSON output structure
@@ -34,6 +38,7 @@ type JSONOutput struct {
 	Missing          []MissingVariable `json:"missing"`
 	DeclaredSources  map[string]string `json:"declared_sources"`
 	DockerfileIssues DockerfileIssues  `json:"dockerfile_issues"`
+	ComposeIssues    ComposeIssues     `json:"compose_issues"`
 }
 
 // Summary contains scan statistics
@@ -60,5 +65,25 @@ type DockerfileIssues struct {
 // DockerUndeclaredVar represents a variable used in Dockerfile but not declared
 type DockerUndeclaredVar struct {
 	Variable string   `json:"variable"`
+	Location Location `json:"location"`
+}
+
+// ComposeIssues contains Docker Compose-specific mismatches
+type ComposeIssues struct {
+	ComposeDeclaresNotInEnv  []ComposeVariableIssue `json:"compose_declares_not_in_env"`
+	ComposeUsesUndefined     []ComposeVariableIssue `json:"compose_uses_undefined"`
+	EnvDeclaresUnusedCompose []string               `json:"env_declares_unused_in_compose"`
+	ComposeMissingEnvFiles   []ComposeEnvFileIssue  `json:"compose_missing_env_files"`
+}
+
+// ComposeVariableIssue represents a variable issue found in a compose file.
+type ComposeVariableIssue struct {
+	Variable string   `json:"variable"`
+	Location Location `json:"location"`
+}
+
+// ComposeEnvFileIssue represents a missing env_file reference in a compose file.
+type ComposeEnvFileIssue struct {
+	Path     string   `json:"path"`
 	Location Location `json:"location"`
 }

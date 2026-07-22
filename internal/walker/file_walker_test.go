@@ -48,6 +48,9 @@ func TestFileWalker_Walk(t *testing.T) {
 		"node_modules/package.js":  "// Should be ignored",
 		"vendor/lib.go":            "// Should be ignored",
 		"custom_ignore/test.js":    "// Should be ignored with custom flag",
+		"docker-compose.yml":       "services:\n  app:\n    image: app:${VERSION}\n",
+		"docker-compose.prod.yml":  "services:\n  app:\n    image: app:prod\n",
+		"compose.yaml":             "services:\n  app:\n    environment:\n      - API_KEY=value\n",
 	}
 
 	for path, content := range files {
@@ -82,6 +85,9 @@ func TestFileWalker_Walk(t *testing.T) {
 			filepath.Join(tmpDir, "src/main.go"),
 			filepath.Join(tmpDir, "src/script.py"),
 			filepath.Join(tmpDir, "custom_ignore/test.js"),
+			filepath.Join(tmpDir, "docker-compose.yml"),
+			filepath.Join(tmpDir, "docker-compose.prod.yml"),
+			filepath.Join(tmpDir, "compose.yaml"),
 		}
 		sort.Strings(expected)
 
@@ -105,11 +111,22 @@ func TestFileWalker_Walk(t *testing.T) {
 			t.Fatalf("Walk failed: %v", err)
 		}
 
-		// Verify only valid extensions are included
+		// Verify only valid extensions are included, plus Docker/Docker Compose naming patterns
 		validExts := map[string]bool{".js": true, ".ts": true, ".go": true, ".py": true, ".rb": true, ".php": true, ".java": true, ".kt": true, ".kts": true}
 		for _, file := range result {
 			ext := filepath.Ext(file)
-			if !validExts[ext] {
+			baseName := filepath.Base(file)
+			isDockerfile := baseName == "Dockerfile" ||
+				filepath.Ext(baseName) == ".dockerfile" ||
+				strings.HasPrefix(baseName, "Dockerfile")
+			isComposeFile := baseName == "docker-compose.yml" ||
+				baseName == "docker-compose.yaml" ||
+				baseName == "compose.yml" ||
+				baseName == "compose.yaml" ||
+				(strings.HasPrefix(baseName, "docker-compose.") &&
+					(strings.HasSuffix(baseName, ".yml") || strings.HasSuffix(baseName, ".yaml")))
+
+			if !validExts[ext] && !isDockerfile && !isComposeFile {
 				t.Errorf("File with invalid extension found: %s", file)
 			}
 		}

@@ -30,6 +30,10 @@ var sarifRules = []sarifRuleDef{
 	{id: "ENV003", name: "code-uses-not-in-docker", description: "Variable is used in code but not declared in Dockerfile or .env", level: "warning"},
 	{id: "ENV004", name: "docker-declares-unused", description: "Variable is declared in Dockerfile but not used in code", level: "warning"},
 	{id: "ENV005", name: "docker-uses-undeclared", description: "Variable is used in Dockerfile but not declared", level: "error"},
+	{id: "ENV006", name: "compose-declares-not-in-env", description: "Variable is declared in compose file but not declared in .env", level: "warning"},
+	{id: "ENV007", name: "compose-uses-undefined", description: "Variable is used in compose file but not declared in compose, Dockerfile, or .env", level: "error"},
+	{id: "ENV008", name: "env-declares-unused-in-compose", description: "Variable is declared in .env but not used by compose files", level: "warning"},
+	{id: "ENV009", name: "compose-missing-env-file", description: "compose file references an env_file that does not exist", level: "error"},
 }
 
 // ReportSARIF formats and outputs the analysis results as SARIF 2.1.0 JSON.
@@ -189,6 +193,71 @@ func buildSARIFResults(data types.ReportData) ([]types.SARIFResult, map[string]b
 			result.Locations = []types.SARIFLocation{
 				makeLocation(loc.FilePath, loc.LineNumber),
 			}
+		}
+		results = append(results, result)
+	}
+
+	// ENV006 - compose declares but not in .env (with location)
+	composeDeclares := sortedKeysLoc(data.ComposeDeclaresNotInEnv)
+	for _, varName := range composeDeclares {
+		activeRuleIDs["ENV006"] = true
+		loc := data.ComposeDeclaresNotInEnv[varName]
+		result := types.SARIFResult{
+			RuleID:  "ENV006",
+			Level:   "warning",
+			Message: types.SARIFMessage{Text: fmt.Sprintf("%s: Variable is declared in compose file but not in .env", varName)},
+		}
+		if loc.FilePath != "" {
+			result.Locations = []types.SARIFLocation{makeLocation(loc.FilePath, loc.LineNumber)}
+		}
+		results = append(results, result)
+	}
+
+	// ENV007 - compose uses undefined variables (with location)
+	composeUsesUndefined := sortedKeysLoc(data.ComposeUsesUndefined)
+	for _, varName := range composeUsesUndefined {
+		activeRuleIDs["ENV007"] = true
+		loc := data.ComposeUsesUndefined[varName]
+		result := types.SARIFResult{
+			RuleID:  "ENV007",
+			Level:   "error",
+			Message: types.SARIFMessage{Text: fmt.Sprintf("%s: Variable is used in compose file but not declared", varName)},
+		}
+		if loc.FilePath != "" {
+			result.Locations = []types.SARIFLocation{makeLocation(loc.FilePath, loc.LineNumber)}
+		}
+		results = append(results, result)
+	}
+
+	// ENV008 - .env declares not used in compose (no location)
+	envUnusedCompose := data.EnvDeclaresUnusedCompose
+	if envUnusedCompose == nil {
+		envUnusedCompose = []string{}
+	}
+	sortedEnvUnusedCompose := make([]string, len(envUnusedCompose))
+	copy(sortedEnvUnusedCompose, envUnusedCompose)
+	sort.Strings(sortedEnvUnusedCompose)
+	for _, varName := range sortedEnvUnusedCompose {
+		activeRuleIDs["ENV008"] = true
+		results = append(results, types.SARIFResult{
+			RuleID:  "ENV008",
+			Level:   "warning",
+			Message: types.SARIFMessage{Text: fmt.Sprintf("%s: Variable is declared in .env but not used in compose files", varName)},
+		})
+	}
+
+	// ENV009 - compose missing env files (with location)
+	missingEnvFilePaths := sortedKeysLoc(data.ComposeMissingEnvFiles)
+	for _, missingPath := range missingEnvFilePaths {
+		activeRuleIDs["ENV009"] = true
+		loc := data.ComposeMissingEnvFiles[missingPath]
+		result := types.SARIFResult{
+			RuleID:  "ENV009",
+			Level:   "error",
+			Message: types.SARIFMessage{Text: fmt.Sprintf("%s: compose references a missing env_file", missingPath)},
+		}
+		if loc.FilePath != "" {
+			result.Locations = []types.SARIFLocation{makeLocation(loc.FilePath, loc.LineNumber)}
 		}
 		results = append(results, result)
 	}

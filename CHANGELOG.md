@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.1/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0](https://github.com/YhaliWaizman/Capture/compare/v1.1.1...v1.2.0) (2026-07-23)
+
+
+### Features
+
+* **ci:** add official GitHub Action for capture scan ([5829a8b](https://github.com/YhaliWaizman/Capture/commit/5829a8b895e0b17f693cb8948233dd5840bfda71))
+* **detector:** add Java and Kotlin env detection ([7024703](https://github.com/YhaliWaizman/Capture/commit/702470385378aad6f6bc5054787e3b51c8324d41))
+* **detector:** add PHP language support ([dd2539e](https://github.com/YhaliWaizman/Capture/commit/dd2539e3d725032663c0d9527b759550ae53efa7)), closes [#9](https://github.com/YhaliWaizman/Capture/issues/9)
+* **detector:** add Ruby language support ([fc36058](https://github.com/YhaliWaizman/Capture/commit/fc3605890e5703706dba2c00be851a9be4ced294))
+* **docker:** add Docker Compose support for env validation ([73358bd](https://github.com/YhaliWaizman/Capture/commit/73358bdea563112bdc253b089e9fbf0c1d1726e8))
+* **scan:** add auto-fix mode for missing env vars ([f57e140](https://github.com/YhaliWaizman/Capture/commit/f57e1407d55d26088f0806ff09736f74981fb4c2))
+* **scan:** add configuration file support ([eb1d8e5](https://github.com/YhaliWaizman/Capture/commit/eb1d8e577e9cce8ac9be992f457102ff96c256ae))
+* **scan:** add incremental scanning with cache ([f0f6e63](https://github.com/YhaliWaizman/Capture/commit/f0f6e630ad9807b4ac074e390c50b2f7fc7af4e0))
+* **scan:** add parallel file processing with workers ([a663855](https://github.com/YhaliWaizman/Capture/commit/a66385589ae8dceccf18a52b8d7a9ca0bbc0fabf))
+* **scan:** add watch mode for automatic re-scans ([6f1ab1f](https://github.com/YhaliWaizman/Capture/commit/6f1ab1f3b6ac0a0fe9868a7a3982688cbfe372d5))
+* **scan:** support multiple env files with last file wins precedence ([c8468fa](https://github.com/YhaliWaizman/Capture/commit/c8468fa509bfa52ff497fd355c0e9ef52764316b))
+* **scan:** support multiple env files with last file wins precedence ([5d93057](https://github.com/YhaliWaizman/Capture/commit/5d93057c831837db8bba8bf43134317d603a5643))
+* **security:** detect hardcoded secrets in source files ([0362069](https://github.com/YhaliWaizman/Capture/commit/036206932c2f60682d74424356ffa97852669dc0))
+* **template:** generate .env.example from detected env usage ([fc42052](https://github.com/YhaliWaizman/Capture/commit/fc420525b43f8930d3ec08b2518cb335a0b5ce12))
+
 ## [1.7.0](https://github.com/YhaliWaizman/Capture/compare/v1.6.0...v1.7.0) (2026-07-22)
 
 ### Features

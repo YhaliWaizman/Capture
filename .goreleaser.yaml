@@ -29,9 +29,9 @@ builds:
         goarch: arm
     ldflags:
       - -s -w
-      - -X github.com/yhaliwaizman/capture/cmd/capture/cmd.version.version={{.Version}}
-      - -X github.com/yhaliwaizman/capture/cmd/capture/cmd.version.commit={{.Commit}}
-      - -X github.com/yhaliwaizman/capture/cmd/capture/cmd.version.date={{.Date}}
+      - -X github.com/yhaliwaizman/capture/cmd/capture/cmd.version={{.Version}}
+      - -X github.com/yhaliwaizman/capture/cmd/capture/cmd.commit={{.Commit}}
+      - -X github.com/yhaliwaizman/capture/cmd/capture/cmd.date={{.Date}}
 
 archives:
   - id: capture
